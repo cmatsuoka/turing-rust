@@ -3,12 +3,12 @@ use psutil::cpu::CpuPercentCollector;
 use std::error::Error;
 
 #[derive(Debug)]
-pub struct CpuLoad<'a> {
-    pub name: &'a str,
+pub struct CpuLoad {
+    pub name: &'static str,
     cpc: CpuPercentCollector,
 }
 
-impl CpuLoad<'_> {
+impl CpuLoad {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         Ok(Self {
             name: "cpu_load",
@@ -17,9 +17,9 @@ impl CpuLoad<'_> {
     }
 }
 
-impl Meter for CpuLoad<'_> {
-    fn name(&self) -> String {
-        self.name.to_string()
+impl Meter for CpuLoad {
+    fn name(&self) -> &'static str {
+        self.name
     }
 
     fn measure(&mut self) -> Measurement {

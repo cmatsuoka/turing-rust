@@ -13,6 +13,6 @@ impl Measurement {
 }
 
 pub trait Meter {
-    fn name(&self) -> String;
+    fn name(&self) -> &'static str;
     fn measure(&mut self) -> Measurement;
 }
