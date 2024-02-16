@@ -45,8 +45,15 @@ impl Scheduler {
                 // if timer expired, run our task
                 if task.last.elapsed() >= task.period {
                     task.last = now;
-                    let m = task.meter.measure();
+                    let val = match task.meter.measure() {
+                        Ok(val) => val,
+                        Err(err) => {
+                            log::warn!("measurement error: {}", err);
+                            0.0
+                        }
+                    };
 
+                    let m = Measurement::new(task.meter.name(), val);
                     match self.ch.send(m) {
                         Ok(_) => (),
                         Err(err) => {

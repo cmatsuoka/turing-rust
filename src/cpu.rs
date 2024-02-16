@@ -1,4 +1,4 @@
-use crate::meter::{Measurement, Meter};
+use crate::meter::Meter;
 use psutil::cpu::CpuPercentCollector;
 use std::error::Error;
 
@@ -22,9 +22,9 @@ impl Meter for CpuLoad {
         self.name
     }
 
-    fn measure(&mut self) -> Measurement {
-        let val: f32 = self.cpc.cpu_percent().unwrap();
+    fn measure(&mut self) -> Result<f32, Box<dyn Error>> {
+        let val: f32 = self.cpc.cpu_percent()?;
 
-        Measurement::new(&self.name(), val)
+        Ok(val)
     }
 }
