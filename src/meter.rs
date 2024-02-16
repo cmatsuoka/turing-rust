@@ -1,14 +1,14 @@
 use std::error::Error;
 
 pub struct Measurement {
-    pub name: String,
+    pub name: &'static str,
     pub value: f32,
 }
 
 impl Measurement {
-    pub fn new(name: &str, value: f32) -> Self {
+    pub fn new(name: &'static str, value: f32) -> Self {
         Self {
-            name: name.to_string(),
+            name: name,
             value: value,
         }
     }

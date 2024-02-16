@@ -55,7 +55,7 @@ struct Text {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct Widget {
+pub struct Stat {
     #[serde(alias = "INTERVAL")]
     interval: u32,
     #[serde(alias = "TEXT")]
@@ -67,7 +67,7 @@ pub struct Theme {
     display: Display,
     static_images: StaticImages,
     #[serde(alias = "STATS")]
-    stats: HashMap<String, HashMap<String, Widget>>,
+    pub stats: HashMap<String, HashMap<String, Stat>>,
 }
 
 pub fn load(name: &str) -> Result<Theme, Box<dyn error::Error>> {
