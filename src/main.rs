@@ -6,7 +6,7 @@ use clap::Parser;
 use simple_logger::SimpleLogger;
 use std::error::Error;
 use std::process;
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::Duration;
 
@@ -41,14 +41,16 @@ fn run(args: Args) -> Result<(), Box<dyn Error>> {
     SimpleLogger::new().init()?;
 
     let theme_name = args.theme;
-    let theme = load(&theme_name)?;
+    let theme = Arc::new(load(&theme_name)?);
 
     log::info!("using theme: {:?}", theme_name);
 
     let _scr = ScreenRevA::new("AUTO");
     let (tx, rx) = mpsc::channel();
 
-    thread::spawn(|| {
+    let sched_theme = theme.clone();
+
+    thread::spawn(move || {
         let mut scheduler = Scheduler::new(tx);
         let cpu_load = CpuLoad::new().unwrap();
         scheduler.register_task(Task::new(Box::new(cpu_load), Duration::from_millis(2000)));

@@ -4,7 +4,7 @@ use std::error;
 use std::fs::File;
 use std::io::BufReader;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Display {
     #[serde(alias = "DISPLAY_ORIENTATION")]
     display_orientation: String,
@@ -12,7 +12,7 @@ struct Display {
     display_rgb_led: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Background {
     #[serde(alias = "PATH")]
     path: String,
@@ -26,13 +26,13 @@ struct Background {
     height: u32,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct StaticImages {
     #[serde(alias = "BACKGROUND")]
     background: Background,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Text {
     #[serde(alias = "SHOW")]
     show: bool,
@@ -54,7 +54,7 @@ struct Text {
     background_image: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Widget {
     #[serde(alias = "INTERVAL")]
     interval: u32,
@@ -62,7 +62,7 @@ struct Widget {
     text: Text,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Theme {
     display: Display,
     static_images: StaticImages,
