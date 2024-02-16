@@ -26,8 +26,6 @@ struct Args {
 }
 
 fn main() {
-    SimpleLogger::new().init().unwrap();
-
     let args = Args::parse();
 
     match run(args) {
@@ -40,6 +38,8 @@ fn main() {
 }
 
 fn run(args: Args) -> Result<(), Box<dyn Error>> {
+    SimpleLogger::new().init()?;
+
     let theme_name = args.theme;
     let theme = load(&theme_name)?;
 
