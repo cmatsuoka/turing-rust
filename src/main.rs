@@ -1,4 +1,3 @@
-
 use std::collections::HashMap;
 use std::error::Error;
 use std::process;
@@ -6,7 +5,7 @@ use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use bevy_reflect::{Struct};
+
 use clap::Parser;
 use simple_logger::SimpleLogger;
 
@@ -61,31 +60,34 @@ fn run(args: Args) -> Result<(), Box<dyn Error>> {
     let _scr = ScreenRevA::new("AUTO");
     let (tx, rx) = mpsc::channel();
 
-    let mut map = HashMap::<&str, f32>::new();
-    let name_list = get_name_list(&theme);
-    for name in &name_list {
-        map.insert(name, 0.0);
+    let mut meter_map = HashMap::<&str, f32>::new();
+    let meter_configs = themes::get_meter_list(&theme);
+    for config in &meter_configs {
+        meter_map.insert(&config.key, 0.0);
     }
 
     let _sched_theme = theme.clone();
-    let sched_name_list = name_list.clone();
+    let sched_meter_configs = meter_configs.clone();
 
+    // Data collection thread: read pc stats.
     thread::spawn(move || {
         let mut scheduler = Scheduler::new(tx);
 
-        for name in sched_name_list {
-            match meter_factory(&name) {
+        for meter in sched_meter_configs {
+            match create_meter(&meter.key) {
                 Ok(m) => {
                     scheduler.register_task(Task::new(m, Duration::from_secs(2)));
                 }
                 Err(err) => {
-                    log::warn!("cannot register meter: {err}");
+                    log::warn!("cannot register {}: {}", meter.key, err);
                 }
             }
         }
         scheduler.start();
     });
 
+    // Main dispatcher: collect meter readings and send data to
+    // the renderer thread.
     // TODO: use recv_deadline when it stabilizes
     let mut timeout = refresh_period;
     loop {
@@ -102,58 +104,20 @@ fn run(args: Args) -> Result<(), Box<dyn Error>> {
             }
             Err(err) => {
                 if err == mpsc::RecvTimeoutError::Timeout {
-                    log::debug!("measurements: {:?}", map);
+                    log::debug!("measurements: {:?}", meter_map);
                     timeout = refresh_period;
                 }
                 continue;
             }
         };
         // println!("---- {}: {}", m.name, m.value);
-        if let Some(val) = map.get_mut(m.name) { *val = m.value; }
-    }
-}
-
-fn get_name_list(theme: &themes::Theme) -> Vec<String> {
-    let mut res = Vec::<String>::new();
-
-    for (i, value) in theme.stats.iter_fields().enumerate() {
-        let name = theme.stats.name_at(i).unwrap();
-        let _interval: u32 = 2;
-        match name {
-            "interval" => (), // TODO: handle interval overrides
-            device_name => {
-                let devstats = value.downcast_ref::<Option<themes::DeviceStats>>().unwrap();
-                match devstats {
-                    Some(ds) => {
-                        get_meter_names(device_name, ds, &mut res);
-                    }
-                    _ => (),
-                }
-            }
-        }
-    }
-
-    res
-}
-
-fn get_meter_names(device_name: &str, ds: &themes::DeviceStats, names: &mut Vec<String>) {
-    for (i, v) in ds.iter_fields().enumerate() {
-        let meter_name = ds.name_at(i).unwrap();
-        match meter_name {
-            "interval" => (), // TODO: handle interval overrides
-            _ => match v.downcast_ref::<Option<themes::DeviceMeter>>() {
-                Some(Some(_val)) => names.push(format!(
-                    "{}:{}",
-                    device_name.to_uppercase(),
-                    meter_name.to_uppercase()
-                )),
-                _ => (),
-            },
+        if let Some(val) = meter_map.get_mut(m.name) {
+            *val = m.value;
         }
     }
 }
 
-fn meter_factory(name: &str) -> Result<Box<dyn Meter>, Box<dyn Error>> {
+fn create_meter(name: &str) -> Result<Box<dyn Meter>, Box<dyn Error>> {
     let m: Box<dyn Meter> = match name {
         "CPU:PERCENTAGE" => Box::new(CpuPercentage::new()?),
         "CPU:TEMPERATURE" => Box::new(CpuTemperature::new()?),

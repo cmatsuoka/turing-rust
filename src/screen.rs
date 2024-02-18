@@ -64,10 +64,7 @@ impl ScreenRevA {
 
         let orientation = Orientation::Portrait;
 
-        Ok(Self {
-            port,
-            orientation,
-        })
+        Ok(Self { port, orientation })
     }
 }
 

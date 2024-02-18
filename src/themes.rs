@@ -1,9 +1,8 @@
-
 use std::error;
 use std::fs::File;
 use std::io::BufReader;
 
-use bevy_reflect::Reflect;
+use bevy_reflect::{Reflect, Struct};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -29,7 +28,7 @@ struct StaticImages {
     background: Background,
 }
 
-#[derive(Debug, Clone, Deserialize, Reflect)]
+#[derive(Debug, Clone, Default, Deserialize, Reflect)]
 #[serde(rename_all = "UPPERCASE")]
 struct Text {
     show: bool,
@@ -43,7 +42,7 @@ struct Text {
     background_image: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Reflect)]
+#[derive(Debug, Clone, Default, Deserialize, Reflect)]
 #[serde(rename_all = "UPPERCASE")]
 struct Graph {
     show: bool,
@@ -59,31 +58,7 @@ struct Graph {
     background_image: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Reflect)]
-#[serde(rename_all = "UPPERCASE")]
-pub struct Percentage {
-    interval: Option<u32>,
-    text: Option<Text>,
-    graph: Option<Graph>,
-}
-
-#[derive(Debug, Clone, Deserialize, Reflect)]
-#[serde(rename_all = "UPPERCASE")]
-pub struct Frequency {
-    interval: Option<u32>,
-    text: Option<Text>,
-    graph: Option<Graph>,
-}
-
-#[derive(Debug, Clone, Deserialize, Reflect)]
-#[serde(rename_all = "UPPERCASE")]
-pub struct Temperature {
-    interval: Option<u32>,
-    text: Option<Text>,
-    graph: Option<Graph>,
-}
-
-#[derive(Debug, Clone, Deserialize, Reflect)]
+#[derive(Debug, Clone, Default, Deserialize, Reflect)]
 #[serde(rename_all = "UPPERCASE")]
 pub struct DeviceMeter {
     interval: Option<u32>,
@@ -100,7 +75,7 @@ pub struct DeviceStats {
     pub temperature: Option<DeviceMeter>,
 }
 
-#[derive(Debug, Clone, Deserialize, Reflect)]
+#[derive(Debug, Clone, Default, Deserialize, Reflect)]
 #[serde(rename_all = "UPPERCASE")]
 pub struct Stats {
     pub interval: Option<u32>,
@@ -134,4 +109,53 @@ where
     let reader = BufReader::new(file);
     let result: T = serde_yaml::from_reader(reader)?;
     Ok(result)
+}
+
+#[derive(Debug, Clone)]
+pub struct MeterConfig {
+    pub key: String,
+    pub interval: u32,
+}
+
+pub fn get_meter_list(theme: &Theme) -> Vec<MeterConfig> {
+    // The default interval.
+    let mut interval = 2;
+
+    // If stats specify a new interval, use it.
+    if let Some(val) = theme.stats.interval {
+        interval = val;
+    }
+
+    let mut res = Vec::<MeterConfig>::new();
+
+    for (i, dev) in theme.stats.iter_fields().enumerate() {
+        let mut dev_interval = interval;
+        let dev_name = theme.stats.name_at(i).unwrap().to_uppercase();
+        if let Some(Some(dev_field)) = dev.downcast_ref::<Option<DeviceStats>>() {
+            // If device specifies a local interval, use it.
+            if let Some(val) = dev_field.interval {
+                dev_interval = val;
+            }
+
+            // Iterate over device types.
+            for (j, meter) in dev_field.iter_fields().enumerate() {
+                let mut meter_interval = dev_interval;
+                let meter_name = dev_field.name_at(j).unwrap().to_uppercase();
+                if let Some(Some(meter_field)) = meter.downcast_ref::<Option<DeviceMeter>>() {
+                    // If meter specifies a local interval, use it.
+                    if let Some(val) = meter_field.interval {
+                        meter_interval = val;
+                    }
+
+                    // Add to list of existing meters.
+                    res.push(MeterConfig {
+                        key: format!("{dev_name}:{meter_name}"),
+                        interval: meter_interval,
+                    });
+                }
+            }
+        }
+    }
+
+    res
 }

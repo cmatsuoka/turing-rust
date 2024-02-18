@@ -7,10 +7,7 @@ pub struct Measurement {
 
 impl Measurement {
     pub fn new(name: &'static str, value: f32) -> Self {
-        Self {
-            name,
-            value,
-        }
+        Self { name, value }
     }
 }
 
