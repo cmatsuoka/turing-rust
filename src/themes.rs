@@ -1,65 +1,112 @@
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::error;
 use std::fs::File;
 use std::io::BufReader;
 
+use bevy_reflect::Reflect;
+use serde::Deserialize;
+
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
 struct Display {
-    #[serde(alias = "DISPLAY_ORIENTATION")]
     display_orientation: String,
-    #[serde(alias = "DISPLAY_RGB_LED")]
     display_rgb_led: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
 struct Background {
-    #[serde(alias = "PATH")]
     path: String,
-    #[serde(alias = "X")]
     x: u32,
-    #[serde(alias = "Y")]
     y: u32,
-    #[serde(alias = "WIDTH")]
     width: u32,
-    #[serde(alias = "HEIGHT")]
     height: u32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
 struct StaticImages {
-    #[serde(alias = "BACKGROUND")]
     background: Background,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Reflect)]
+#[serde(rename_all = "UPPERCASE")]
 struct Text {
-    #[serde(alias = "SHOW")]
     show: bool,
-    #[serde(alias = "SHOW_UNIT")]
     show_unit: bool,
-    #[serde(alias = "X")]
     x: u32,
-    #[serde(alias = "Y")]
     y: u32,
-    #[serde(alias = "FONT")]
     font: String,
-    #[serde(alias = "FONT_SIZE")]
     font_size: u32,
-    #[serde(alias = "FONT_COLOR")]
     font_color: String,
-    #[serde(alias = "BACKGROUND_COLOR")]
     background_color: Option<String>,
-    #[serde(alias = "BACKGROUND_IMAGE")]
     background_image: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct Stat {
-    #[serde(alias = "INTERVAL")]
-    interval: u32,
-    #[serde(alias = "TEXT")]
-    text: Text,
+#[derive(Debug, Clone, Deserialize, Reflect)]
+#[serde(rename_all = "UPPERCASE")]
+struct Graph {
+    show: bool,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    min_value: String,
+    max_value: u32,
+    bar_color: String,
+    bar_outline: bool,
+    background_color: Option<String>,
+    background_image: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Reflect)]
+#[serde(rename_all = "UPPERCASE")]
+pub struct Percentage {
+    interval: Option<u32>,
+    text: Option<Text>,
+    graph: Option<Graph>,
+}
+
+#[derive(Debug, Clone, Deserialize, Reflect)]
+#[serde(rename_all = "UPPERCASE")]
+pub struct Frequency {
+    interval: Option<u32>,
+    text: Option<Text>,
+    graph: Option<Graph>,
+}
+
+#[derive(Debug, Clone, Deserialize, Reflect)]
+#[serde(rename_all = "UPPERCASE")]
+pub struct Temperature {
+    interval: Option<u32>,
+    text: Option<Text>,
+    graph: Option<Graph>,
+}
+
+#[derive(Debug, Clone, Deserialize, Reflect)]
+#[serde(rename_all = "UPPERCASE")]
+pub struct DeviceMeter {
+    interval: Option<u32>,
+    text: Option<Text>,
+    graph: Option<Graph>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Reflect)]
+#[serde(rename_all = "UPPERCASE")]
+pub struct DeviceStats {
+    pub interval: Option<u32>,
+    pub percentage: Option<DeviceMeter>,
+    pub frequency: Option<DeviceMeter>,
+    pub temperature: Option<DeviceMeter>,
+}
+
+#[derive(Debug, Clone, Deserialize, Reflect)]
+#[serde(rename_all = "UPPERCASE")]
+pub struct Stats {
+    pub interval: Option<u32>,
+    pub cpu: Option<DeviceStats>,
+    pub gpu: Option<DeviceStats>,
+    //pub memory: Option<MemoryStat>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -67,7 +114,7 @@ pub struct Theme {
     display: Display,
     static_images: StaticImages,
     #[serde(alias = "STATS")]
-    pub stats: HashMap<String, HashMap<String, Stat>>,
+    pub stats: Stats,
 }
 
 pub fn load(name: &str) -> Result<Theme, Box<dyn error::Error>> {

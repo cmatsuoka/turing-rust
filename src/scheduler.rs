@@ -53,7 +53,7 @@ impl Scheduler {
                         }
                     };
 
-                    let m = Measurement::new(task.meter.name(), val);
+                    let m = Measurement::new(&task.meter.name(), val);
                     match self.ch.send(m) {
                         Ok(_) => (),
                         Err(err) => {
