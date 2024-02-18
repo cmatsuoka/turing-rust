@@ -12,8 +12,8 @@ pub struct Task {
 impl Task {
     pub fn new(meter: Box<dyn Meter>, period: Duration) -> Self {
         Self {
-            meter: meter,
-            period: period,
+            meter,
+            period,
             last: Instant::now() - Duration::from_secs(86400), // a long time ago
         }
     }
@@ -27,7 +27,7 @@ pub struct Scheduler {
 impl Scheduler {
     pub fn new(ch: mpsc::Sender<Measurement>) -> Self {
         Self {
-            ch: ch,
+            ch,
             tasks: Vec::new(),
         }
     }
@@ -53,7 +53,7 @@ impl Scheduler {
                         }
                     };
 
-                    let m = Measurement::new(&task.meter.name(), val);
+                    let m = Measurement::new(task.meter.name(), val);
                     match self.ch.send(m) {
                         Ok(_) => (),
                         Err(err) => {

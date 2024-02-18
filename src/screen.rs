@@ -25,7 +25,7 @@ enum Command {
 }
 
 // Subrevisions
-const USBMONITOR35: &'static [u8] = &[0x01, 0x01, 0x01, 0x01, 0x01, 0x01];
+const USBMONITOR35: &[u8] = &[0x01, 0x01, 0x01, 0x01, 0x01, 0x01];
 
 trait ScreenOperations {
     fn write(&mut self, data: Vec<u8>) -> Result<usize, Box<dyn Error>>;
@@ -65,8 +65,8 @@ impl ScreenRevA {
         let orientation = Orientation::Portrait;
 
         Ok(Self {
-            port: port,
-            orientation: orientation,
+            port,
+            orientation,
         })
     }
 }

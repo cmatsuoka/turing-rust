@@ -1,4 +1,4 @@
-use std::any::type_name;
+
 use std::collections::HashMap;
 use std::error::Error;
 use std::process;
@@ -6,7 +6,7 @@ use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use bevy_reflect::{Reflect, Struct};
+use bevy_reflect::{Struct};
 use clap::Parser;
 use simple_logger::SimpleLogger;
 
@@ -64,10 +64,10 @@ fn run(args: Args) -> Result<(), Box<dyn Error>> {
     let mut map = HashMap::<&str, f32>::new();
     let name_list = get_name_list(&theme);
     for name in &name_list {
-        map.insert(&name, 0.0);
+        map.insert(name, 0.0);
     }
 
-    let sched_theme = theme.clone();
+    let _sched_theme = theme.clone();
     let sched_name_list = name_list.clone();
 
     thread::spawn(move || {
@@ -109,9 +109,7 @@ fn run(args: Args) -> Result<(), Box<dyn Error>> {
             }
         };
         // println!("---- {}: {}", m.name, m.value);
-        map.get_mut(m.name).map(|val| {
-            *val = m.value;
-        });
+        if let Some(val) = map.get_mut(m.name) { *val = m.value; }
     }
 }
 
@@ -120,14 +118,14 @@ fn get_name_list(theme: &themes::Theme) -> Vec<String> {
 
     for (i, value) in theme.stats.iter_fields().enumerate() {
         let name = theme.stats.name_at(i).unwrap();
-        let mut interval: u32 = 2;
+        let _interval: u32 = 2;
         match name {
             "interval" => (), // TODO: handle interval overrides
             device_name => {
                 let devstats = value.downcast_ref::<Option<themes::DeviceStats>>().unwrap();
                 match devstats {
                     Some(ds) => {
-                        get_meter_names(&device_name, ds, &mut res);
+                        get_meter_names(device_name, ds, &mut res);
                     }
                     _ => (),
                 }
@@ -144,7 +142,7 @@ fn get_meter_names(device_name: &str, ds: &themes::DeviceStats, names: &mut Vec<
         match meter_name {
             "interval" => (), // TODO: handle interval overrides
             _ => match v.downcast_ref::<Option<themes::DeviceMeter>>() {
-                Some(Some(val)) => names.push(format!(
+                Some(Some(_val)) => names.push(format!(
                     "{}:{}",
                     device_name.to_uppercase(),
                     meter_name.to_uppercase()
