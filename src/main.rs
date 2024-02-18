@@ -4,7 +4,7 @@ use std::error::Error;
 use std::process;
 use std::sync::{mpsc, Arc};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use bevy_reflect::{Reflect, Struct};
 use clap::Parser;
@@ -22,11 +22,18 @@ mod screen;
 mod themes;
 
 #[derive(Parser)]
+#[command(name = "turing-screen")]
+#[command(about = "A lightweight turing smart screen updater")]
 struct Args {
-    /// Screen brightness
-    #[arg(short, long)]
+    /// Set screen brightness in 0-255 range
+    #[arg(short, long, value_name = "level")]
     brightness: Option<i32>,
 
+    /// Screen refresh period in seconds
+    #[arg(short, long, value_name = "num", default_value_t = 5)]
+    refresh: u64,
+
+    #[arg(value_name = "theme_name")]
     theme: String,
 }
 
@@ -45,6 +52,7 @@ fn main() {
 fn run(args: Args) -> Result<(), Box<dyn Error>> {
     SimpleLogger::new().init()?;
 
+    let refresh_period = Duration::from_secs(args.refresh);
     let theme_name = args.theme;
     let theme = Arc::new(themes::load(&theme_name)?);
 
@@ -78,13 +86,32 @@ fn run(args: Args) -> Result<(), Box<dyn Error>> {
         scheduler.start();
     });
 
+    // TODO: use recv_deadline when it stabilizes
+    let mut timeout = refresh_period;
     loop {
-        let m = rx.recv().unwrap();
-        println!("---- {}: {}", m.name, m.value);
+        let now = Instant::now();
+        let m = match rx.recv_timeout(timeout) {
+            Ok(m) => {
+                let age = now.elapsed();
+                timeout = if timeout > age {
+                    timeout - age
+                } else {
+                    Duration::ZERO
+                };
+                m
+            }
+            Err(err) => {
+                if err == mpsc::RecvTimeoutError::Timeout {
+                    log::debug!("measurements: {:?}", map);
+                    timeout = refresh_period;
+                }
+                continue;
+            }
+        };
+        // println!("---- {}: {}", m.name, m.value);
         map.get_mut(m.name).map(|val| {
             *val = m.value;
         });
-        // println!("     {:?}", map);
     }
 }
 

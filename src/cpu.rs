@@ -53,11 +53,17 @@ impl Meter for CpuTemperature {
 
     fn measure(&mut self) -> Result<f32, Box<dyn Error>> {
         let temps = sensors::temperatures();
-        let val: f32 = match &temps[0] {
-            Ok(t) => t.current().celsius() as f32,
-            Err(_) => 0.0,
-        };
+        for temp in temps {
+            match &temp {
+                Ok(t) => {
+                    if t.unit() == "k10temp" && t.label() == Some("Tccd1") {
+                        return Ok(t.current().celsius() as f32);
+                    }
+                }
+                Err(_) => (),
+            };
+        }
 
-        Ok(val)
+        Ok(0.0)
     }
 }
