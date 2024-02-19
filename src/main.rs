@@ -5,17 +5,19 @@ use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::{Duration, Instant};
 
-
 use clap::Parser;
 use simple_logger::SimpleLogger;
+use xxhash_rust::xxh3::xxh3_64;
 
 use crate::cpu::*;
-use crate::meter::Meter;
+use crate::meter::{Meter, MeterConfig};
+use crate::render::Renderer;
 use crate::scheduler::{Scheduler, Task};
 use crate::screen::ScreenRevA;
 
 mod cpu;
 mod meter;
+mod render;
 mod scheduler;
 mod screen;
 mod themes;
@@ -31,6 +33,9 @@ struct Args {
     /// Screen refresh period in seconds
     #[arg(short, long, value_name = "num", default_value_t = 5)]
     refresh: u64,
+
+    #[arg(short, long, value_name = "device", default_value_t = String::from("AUTO"))]
+    port: String,
 
     #[arg(value_name = "theme_name")]
     theme: String,
@@ -55,35 +60,34 @@ fn run(args: Args) -> Result<(), Box<dyn Error>> {
     let theme_name = args.theme;
     let theme = Arc::new(themes::load(&theme_name)?);
 
-    log::info!("using theme: {:?}", theme_name);
+    log::info!("using theme: {theme_name}");
 
     let _scr = ScreenRevA::new("AUTO");
-    let (tx, rx) = mpsc::channel();
 
-    let mut meter_map = HashMap::<&str, f32>::new();
+    let mut meter_map = HashMap::<u64, f32>::new();
     let meter_configs = themes::get_meter_list(&theme);
     for config in &meter_configs {
-        meter_map.insert(&config.key, 0.0);
+        let hash = xxh3_64(config.key.as_bytes());
+        meter_map.insert(hash, 0.0);
     }
 
     let _sched_theme = theme.clone();
     let sched_meter_configs = meter_configs.clone();
 
     // Data collection thread: read pc stats.
+    let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
         let mut scheduler = Scheduler::new(tx);
-
-        for meter in sched_meter_configs {
-            match create_meter(&meter.key) {
-                Ok(m) => {
-                    scheduler.register_task(Task::new(m, Duration::from_secs(2)));
-                }
-                Err(err) => {
-                    log::warn!("cannot register {}: {}", meter.key, err);
-                }
-            }
-        }
+        register_meters(&mut scheduler, sched_meter_configs);
         scheduler.start();
+    });
+
+    // Image rendering thread: prepare framebuffer and communicate
+    // with device.
+    let (dev_tx, dev_rx) = mpsc::sync_channel(1);
+    thread::spawn(|| {
+        let mut renderer = Renderer::new(dev_rx);
+        renderer.start();
     });
 
     // Main dispatcher: collect meter readings and send data to
@@ -104,15 +108,34 @@ fn run(args: Args) -> Result<(), Box<dyn Error>> {
             }
             Err(err) => {
                 if err == mpsc::RecvTimeoutError::Timeout {
-                    log::debug!("measurements: {:?}", meter_map);
+                    match dev_tx.try_send(meter_map.clone()) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            log::info!("renderer send error: {err}")
+                        }
+                    }
                     timeout = refresh_period;
                 }
                 continue;
             }
         };
-        // println!("---- {}: {}", m.name, m.value);
-        if let Some(val) = meter_map.get_mut(m.name) {
+        // println!("---- {}: {}", m.id, m.value);
+        if let Some(val) = meter_map.get_mut(&m.id) {
             *val = m.value;
+        }
+    }
+}
+
+fn register_meters(scheduler: &mut Scheduler, meter_list: Vec<MeterConfig>) {
+    for meter in meter_list {
+        match create_meter(&meter.key) {
+            Ok(m) => {
+                let interval = Duration::from_secs(meter.interval.into());
+                scheduler.register_task(Task::new(m, interval));
+            }
+            Err(err) => {
+                log::warn!("cannot register {}: {}", meter.key, err);
+            }
         }
     }
 }
@@ -121,7 +144,7 @@ fn create_meter(name: &str) -> Result<Box<dyn Meter>, Box<dyn Error>> {
     let m: Box<dyn Meter> = match name {
         "CPU:PERCENTAGE" => Box::new(CpuPercentage::new()?),
         "CPU:TEMPERATURE" => Box::new(CpuTemperature::new()?),
-        _ => return Err(format!("invalid meter {name}").into()),
+        _ => return Err("invalid meter".into()),
     };
 
     Ok(m)

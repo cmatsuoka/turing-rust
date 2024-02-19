@@ -1,27 +1,30 @@
-use crate::meter::Meter;
-use psutil::{cpu, sensors};
 use std::error::Error;
+
+use psutil::{cpu, sensors};
+use xxhash_rust::const_xxh3::xxh3_64 as const_xxh3;
+
+use crate::meter::Meter;
 
 // CPU percentage
 
 #[derive(Debug)]
 pub struct CpuPercentage {
-    pub name: &'static str,
+    pub id: u64,
     cpc: cpu::CpuPercentCollector,
 }
 
 impl CpuPercentage {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         Ok(Self {
-            name: "CPU:PERCENTAGE",
+            id: const_xxh3(b"CPU:PERCENTAGE"),
             cpc: cpu::CpuPercentCollector::new()?,
         })
     }
 }
 
 impl Meter for CpuPercentage {
-    fn name(&self) -> &'static str {
-        self.name
+    fn id(&self) -> u64 {
+        self.id
     }
 
     fn measure(&mut self) -> Result<f32, Box<dyn Error>> {
@@ -35,20 +38,20 @@ impl Meter for CpuPercentage {
 
 #[derive(Debug)]
 pub struct CpuTemperature {
-    pub name: &'static str,
+    pub id: u64,
 }
 
 impl CpuTemperature {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         Ok(Self {
-            name: "CPU:TEMPERATURE",
+            id: const_xxh3(b"CPU:TEMPERATURE"),
         })
     }
 }
 
 impl Meter for CpuTemperature {
-    fn name(&self) -> &'static str {
-        self.name
+    fn id(&self) -> u64 {
+        self.id
     }
 
     fn measure(&mut self) -> Result<f32, Box<dyn Error>> {

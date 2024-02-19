@@ -33,7 +33,7 @@ impl Scheduler {
     }
 
     pub fn register_task(&mut self, task: Task) {
-        log::info!("register {}", task.meter.name());
+        log::info!("register {}", task.meter.id());
         self.tasks.push(task);
     }
 
@@ -53,7 +53,7 @@ impl Scheduler {
                         }
                     };
 
-                    let m = Measurement::new(task.meter.name(), val);
+                    let m = Measurement::new(task.meter.id(), val);
                     match self.ch.send(m) {
                         Ok(_) => (),
                         Err(err) => {

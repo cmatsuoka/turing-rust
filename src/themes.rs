@@ -5,6 +5,8 @@ use std::io::BufReader;
 use bevy_reflect::{Reflect, Struct};
 use serde::Deserialize;
 
+use crate::meter::MeterConfig;
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 struct Display {
@@ -109,12 +111,6 @@ where
     let reader = BufReader::new(file);
     let result: T = serde_yaml::from_reader(reader)?;
     Ok(result)
-}
-
-#[derive(Debug, Clone)]
-pub struct MeterConfig {
-    pub key: String,
-    pub interval: u32,
 }
 
 pub fn get_meter_list(theme: &Theme) -> Vec<MeterConfig> {
