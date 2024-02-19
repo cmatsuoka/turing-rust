@@ -3,7 +3,7 @@ use std::error::Error;
 use std::process;
 use std::sync::{mpsc, Arc};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use clap::Parser;
 use simple_logger::SimpleLogger;
@@ -71,59 +71,20 @@ fn run(args: Args) -> Result<(), Box<dyn Error>> {
         meter_map.insert(hash, 0.0);
     }
 
-    let _sched_theme = theme.clone();
-    let sched_meter_configs = meter_configs.clone();
-
-    // Data collection thread: read pc stats.
-    let (tx, rx) = mpsc::channel();
-    thread::spawn(move || {
-        let mut scheduler = Scheduler::new(tx);
-        register_meters(&mut scheduler, sched_meter_configs);
-        scheduler.start();
-    });
-
     // Image rendering thread: prepare framebuffer and communicate
     // with device.
-    let (dev_tx, dev_rx) = mpsc::sync_channel(1);
+    let (tx, rx) = mpsc::sync_channel(1);
     thread::spawn(|| {
-        let mut renderer = Renderer::new(dev_rx);
+        let mut renderer = Renderer::new(rx);
         renderer.start();
     });
 
-    // Main dispatcher: collect meter readings and send data to
-    // the renderer thread.
-    // TODO: use recv_deadline when it stabilizes
-    let mut timeout = refresh_period;
-    loop {
-        let now = Instant::now();
-        let m = match rx.recv_timeout(timeout) {
-            Ok(m) => {
-                let age = now.elapsed();
-                timeout = if timeout > age {
-                    timeout - age
-                } else {
-                    Duration::ZERO
-                };
-                m
-            }
-            Err(err) => {
-                if err == mpsc::RecvTimeoutError::Timeout {
-                    match dev_tx.try_send(meter_map.clone()) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            log::info!("renderer send error: {err}")
-                        }
-                    }
-                    timeout = refresh_period;
-                }
-                continue;
-            }
-        };
-        // println!("---- {}: {}", m.id, m.value);
-        if let Some(val) = meter_map.get_mut(&m.id) {
-            *val = m.value;
-        }
-    }
+    // Main loop: collect pc stats.
+    let mut scheduler = Scheduler::new(tx, refresh_period);
+    register_meters(&mut scheduler, meter_configs);
+    scheduler.start(meter_map);
+
+    Ok(())
 }
 
 fn register_meters(scheduler: &mut Scheduler, meter_list: Vec<MeterConfig>) {

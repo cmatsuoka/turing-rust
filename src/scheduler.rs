@@ -1,7 +1,9 @@
-use crate::meter::{Measurement, Meter};
+use std::collections::HashMap;
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
+
+use crate::meter::Meter;
 
 pub struct Task {
     meter: Box<dyn Meter>,
@@ -20,14 +22,16 @@ impl Task {
 }
 
 pub struct Scheduler {
-    ch: mpsc::Sender<Measurement>,
+    ch: mpsc::SyncSender<HashMap<u64, f32>>,
+    refresh_period: Duration,
     tasks: Vec<Task>,
 }
 
 impl Scheduler {
-    pub fn new(ch: mpsc::Sender<Measurement>) -> Self {
+    pub fn new(ch: mpsc::SyncSender<HashMap<u64, f32>>, period: Duration) -> Self {
         Self {
             ch,
+            refresh_period: period,
             tasks: Vec::new(),
         }
     }
@@ -37,15 +41,21 @@ impl Scheduler {
         self.tasks.push(task);
     }
 
-    pub fn start(&mut self) {
+    pub fn start(&mut self, mut meter_map: HashMap<u64, f32>) {
         log::info!("start scheduler");
+        let mut last_refresh = Instant::now() - Duration::from_secs(86400); // a long time ago;
+
         loop {
             let now = Instant::now();
+
+            // Collect stats from meters
             for task in &mut self.tasks {
+                let m = &mut task.meter;
+
                 // if timer expired, run our task
                 if task.last.elapsed() >= task.period {
                     task.last = now;
-                    let val = match task.meter.measure() {
+                    let val = match m.measure() {
                         Ok(val) => val,
                         Err(err) => {
                             log::warn!("measurement error: {}", err);
@@ -53,15 +63,23 @@ impl Scheduler {
                         }
                     };
 
-                    let m = Measurement::new(task.meter.id(), val);
-                    match self.ch.send(m) {
-                        Ok(_) => (),
-                        Err(err) => {
-                            log::warn!("cannot send measurement: {}", err);
-                        }
+                    if let Some(slot) = meter_map.get_mut(&m.id()) {
+                        *slot = val;
                     }
                 }
             }
+
+            // Send state to renderer
+            if last_refresh.elapsed() >= self.refresh_period {
+                match self.ch.try_send(meter_map.clone()) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        log::info!("scheduler send error: {err}");
+                    }
+                }
+                last_refresh = now;
+            }
+
             thread::sleep(Duration::from_millis(100));
         }
     }
