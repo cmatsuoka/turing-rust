@@ -145,7 +145,7 @@ pub fn get_meter_list(theme: &Theme) -> Vec<MeterConfig> {
 
                     // Add to list of existing meters.
                     res.push(MeterConfig {
-                        key: format!("{dev_name}:{meter_name}"),
+                        name: format!("{dev_name}:{meter_name}"),
                         interval: meter_interval,
                     });
                 }

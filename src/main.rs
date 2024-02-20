@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::error::Error;
 use std::process;
 use std::sync::{mpsc, Arc};
@@ -10,7 +9,7 @@ use simple_logger::SimpleLogger;
 use xxhash_rust::xxh3::xxh3_64;
 
 use crate::cpu::*;
-use crate::meter::{Meter, MeterConfig};
+use crate::meter::{Measurements, Meter, MeterConfig};
 use crate::render::Renderer;
 use crate::scheduler::{Scheduler, Task};
 use crate::screen::ScreenRevA;
@@ -64,10 +63,10 @@ fn run(args: Args) -> Result<(), Box<dyn Error>> {
 
     let _scr = ScreenRevA::new("AUTO");
 
-    let mut meter_map = HashMap::<u64, f32>::new();
+    let mut meter_map = Measurements::new();
     let meter_configs = themes::get_meter_list(&theme);
     for config in &meter_configs {
-        let hash = xxh3_64(config.key.as_bytes());
+        let hash = xxh3_64(config.name.as_bytes());
         meter_map.insert(hash, 0.0);
     }
 
@@ -89,13 +88,13 @@ fn run(args: Args) -> Result<(), Box<dyn Error>> {
 
 fn register_meters(scheduler: &mut Scheduler, meter_list: Vec<MeterConfig>) {
     for meter in meter_list {
-        match create_meter(&meter.key) {
+        match create_meter(&meter.name) {
             Ok(m) => {
                 let interval = Duration::from_secs(meter.interval.into());
                 scheduler.register_task(Task::new(m, interval));
             }
             Err(err) => {
-                log::warn!("cannot register {}: {}", meter.key, err);
+                log::warn!("cannot register {}: {}", meter.name, err);
             }
         }
     }

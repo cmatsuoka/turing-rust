@@ -1,9 +1,8 @@
-use std::collections::HashMap;
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::meter::Meter;
+use crate::meter::{Measurements, Meter};
 
 pub struct Task {
     meter: Box<dyn Meter>,
@@ -22,13 +21,13 @@ impl Task {
 }
 
 pub struct Scheduler {
-    ch: mpsc::SyncSender<HashMap<u64, f32>>,
+    ch: mpsc::SyncSender<Measurements>,
     refresh_period: Duration,
     tasks: Vec<Task>,
 }
 
 impl Scheduler {
-    pub fn new(ch: mpsc::SyncSender<HashMap<u64, f32>>, period: Duration) -> Self {
+    pub fn new(ch: mpsc::SyncSender<Measurements>, period: Duration) -> Self {
         Self {
             ch,
             refresh_period: period,
@@ -41,7 +40,7 @@ impl Scheduler {
         self.tasks.push(task);
     }
 
-    pub fn start(&mut self, mut meter_map: HashMap<u64, f32>) {
+    pub fn start(&mut self, mut meter_map: Measurements) {
         log::info!("start scheduler");
         let mut last_refresh = Instant::now() - Duration::from_secs(86400); // a long time ago;
 

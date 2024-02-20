@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::error::Error;
 
 pub trait Meter {
@@ -7,6 +8,8 @@ pub trait Meter {
 
 #[derive(Debug, Clone)]
 pub struct MeterConfig {
-    pub key: String,
+    pub name: String,
     pub interval: u32,
 }
+
+pub type Measurements = HashMap<u64, f32>;
