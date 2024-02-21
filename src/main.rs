@@ -1,12 +1,12 @@
 use std::error::Error;
 use std::process;
-use std::sync::{mpsc, Arc};
+use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
 use clap::Parser;
 use simple_logger::SimpleLogger;
-use xxhash_rust::xxh3::xxh3_64;
+use xxhash_rust::const_xxh3::xxh3_64 as const_xxh3;
 
 use crate::cpu::*;
 use crate::meter::{Measurements, Meter, MeterConfig};
@@ -57,53 +57,56 @@ fn run(args: Args) -> Result<(), Box<dyn Error>> {
 
     let refresh_period = Duration::from_secs(args.refresh);
     let theme_name = args.theme;
-    let theme = Arc::new(themes::load(&theme_name)?);
+    let theme = themes::load(&theme_name)?;
 
     log::info!("using theme: {theme_name}");
 
     let _scr = ScreenRevA::new("AUTO");
 
-    let mut meter_map = Measurements::new();
-    let meter_configs = themes::get_meter_list(&theme);
-    for config in &meter_configs {
-        let hash = xxh3_64(config.name.as_bytes());
-        meter_map.insert(hash, 0.0);
+    let mut measurements = Measurements::new();
+    let configs = themes::get_meter_list(&theme);
+    for cfg in &configs {
+        measurements.insert(cfg.id, 0.0);
     }
 
     // Image rendering thread: prepare framebuffer and communicate
     // with device.
     let (tx, rx) = mpsc::sync_channel(1);
-    thread::spawn(|| {
-        let mut renderer = Renderer::new(rx);
+    let renderer_configs = configs.clone();
+    thread::spawn(move || {
+        let mut renderer = Renderer::new(rx, renderer_configs);
         renderer.start();
     });
 
     // Main loop: collect pc stats.
     let mut scheduler = Scheduler::new(tx, refresh_period);
-    register_meters(&mut scheduler, meter_configs);
-    scheduler.start(meter_map);
+    register_meters(&mut scheduler, configs);
+    scheduler.start(measurements);
 
     Ok(())
 }
 
-fn register_meters(scheduler: &mut Scheduler, meter_list: Vec<MeterConfig>) {
-    for meter in meter_list {
-        match create_meter(&meter.name) {
+fn register_meters(scheduler: &mut Scheduler, configs: Vec<MeterConfig>) {
+    for cfg in configs {
+        match create_meter(cfg.id) {
             Ok(m) => {
-                let interval = Duration::from_secs(meter.interval.into());
+                let interval = Duration::from_secs(cfg.interval.into());
                 scheduler.register_task(Task::new(m, interval));
             }
             Err(err) => {
-                log::warn!("cannot register {}: {}", meter.name, err);
+                log::warn!("cannot register {}: {}", cfg.id, err);
             }
         }
     }
 }
 
-fn create_meter(name: &str) -> Result<Box<dyn Meter>, Box<dyn Error>> {
-    let m: Box<dyn Meter> = match name {
-        "CPU:PERCENTAGE" => Box::new(CpuPercentage::new()?),
-        "CPU:TEMPERATURE" => Box::new(CpuTemperature::new()?),
+const CPU_PERCENTAGE: u64 = const_xxh3(b"CPU:PERCENTAGE");
+const CPU_TEMPERATURE: u64 = const_xxh3(b"CPU:TEMPERATURE");
+
+fn create_meter(id: u64) -> Result<Box<dyn Meter>, Box<dyn Error>> {
+    let m: Box<dyn Meter> = match id {
+        CPU_PERCENTAGE => Box::new(CpuPercentage::new(id)?),
+        CPU_TEMPERATURE => Box::new(CpuTemperature::new(id)?),
         _ => return Err("invalid meter".into()),
     };
 

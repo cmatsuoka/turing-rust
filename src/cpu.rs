@@ -1,7 +1,6 @@
 use std::error::Error;
 
 use psutil::{cpu, sensors};
-use xxhash_rust::const_xxh3::xxh3_64 as const_xxh3;
 
 use crate::meter::Meter;
 
@@ -14,9 +13,9 @@ pub struct CpuPercentage {
 }
 
 impl CpuPercentage {
-    pub fn new() -> Result<Self, Box<dyn Error>> {
+    pub fn new(id: u64) -> Result<Self, Box<dyn Error>> {
         Ok(Self {
-            id: const_xxh3(b"CPU:PERCENTAGE"),
+            id,
             cpc: cpu::CpuPercentCollector::new()?,
         })
     }
@@ -29,7 +28,6 @@ impl Meter for CpuPercentage {
 
     fn measure(&mut self) -> Result<f32, Box<dyn Error>> {
         let val: f32 = self.cpc.cpu_percent()?;
-
         Ok(val)
     }
 }
@@ -42,10 +40,8 @@ pub struct CpuTemperature {
 }
 
 impl CpuTemperature {
-    pub fn new() -> Result<Self, Box<dyn Error>> {
-        Ok(Self {
-            id: const_xxh3(b"CPU:TEMPERATURE"),
-        })
+    pub fn new(id: u64) -> Result<Self, Box<dyn Error>> {
+        Ok(Self { id })
     }
 }
 

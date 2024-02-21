@@ -4,6 +4,7 @@ use std::io::BufReader;
 
 use bevy_reflect::{Reflect, Struct};
 use serde::Deserialize;
+use xxhash_rust::xxh3::xxh3_64;
 
 use crate::meter::MeterConfig;
 
@@ -145,8 +146,9 @@ pub fn get_meter_list(theme: &Theme) -> Vec<MeterConfig> {
 
                     // Add to list of existing meters.
                     res.push(MeterConfig {
-                        name: format!("{dev_name}:{meter_name}"),
+                        id: xxh3_64(format!("{dev_name}:{meter_name}").as_bytes()),
                         interval: meter_interval,
+                        layout: meter_field.clone(),
                     });
                 }
             }
