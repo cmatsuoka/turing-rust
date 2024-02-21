@@ -33,7 +33,7 @@ struct StaticImages {
 
 #[derive(Debug, Clone, Default, Deserialize, Reflect)]
 #[serde(rename_all = "UPPERCASE")]
-struct Text {
+pub struct Text {
     show: bool,
     show_unit: bool,
     x: u32,
@@ -47,7 +47,7 @@ struct Text {
 
 #[derive(Debug, Clone, Default, Deserialize, Reflect)]
 #[serde(rename_all = "UPPERCASE")]
-struct Graph {
+pub struct Graph {
     show: bool,
     x: u32,
     y: u32,
@@ -65,8 +65,8 @@ struct Graph {
 #[serde(rename_all = "UPPERCASE")]
 pub struct DeviceMeter {
     interval: Option<u32>,
-    text: Option<Text>,
-    graph: Option<Graph>,
+    pub text: Option<Text>,
+    pub graph: Option<Graph>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Reflect)]
