@@ -33,6 +33,7 @@ struct Args {
     #[arg(short, long, value_name = "num", default_value_t = 5)]
     refresh: u64,
 
+    /// Serial device to use
     #[arg(short, long, value_name = "device", default_value_t = String::from("AUTO"))]
     port: String,
 
