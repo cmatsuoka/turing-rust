@@ -1,7 +1,6 @@
 use std::error::Error;
 use std::process;
 
-use lodepng;
 use clap::Parser;
 
 #[derive(Parser)]
@@ -13,7 +12,7 @@ struct Args {
     port: String,
 
     #[arg(value_name = "filename")]
-    image: String
+    image: String,
 }
 
 fn main() {
@@ -29,7 +28,7 @@ fn main() {
 }
 
 fn run(args: Args) -> Result<(), Box<dyn Error>> {
-    let image = lodepng::decode32_file(args.image)?;
+    let _image = lodepng::decode32_file(args.image)?;
 
     Ok(())
 }

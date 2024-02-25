@@ -34,15 +34,15 @@ struct StaticImages {
 #[derive(Debug, Clone, Default, Deserialize, Reflect)]
 #[serde(rename_all = "UPPERCASE")]
 pub struct Text {
-    show: bool,
-    show_unit: bool,
-    x: u32,
-    y: u32,
-    font: String,
-    font_size: u32,
-    font_color: String,
-    background_color: Option<String>,
-    background_image: Option<String>,
+    pub show: bool,
+    pub show_unit: bool,
+    pub x: u32,
+    pub y: u32,
+    pub font: String,
+    pub font_size: u32,
+    pub font_color: String,
+    pub background_color: Option<String>,
+    pub background_image: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Reflect)]
