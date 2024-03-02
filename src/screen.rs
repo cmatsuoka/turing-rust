@@ -149,6 +149,10 @@ impl Screen for ScreenRevA {
     fn draw_bitmap(&mut self, data: &[u8], x: usize, y: usize, w: usize, h: usize) -> Res<()> {
         self.send_command(Command::DisplayBitmap, x, y, x + w - 1, y + h - 1)?;
 
+	if w * h > data.len() {
+		return Err("image dimensions larger than image data".into());
+	}
+
         let (mut start, mut end) = (0, 2 * w);
         for _ in 0..h {
             self.write(data[start..end].to_owned())?;
