@@ -1,11 +1,11 @@
 use std::collections::HashMap;
-use std::error::Error;
 
 use crate::themes::DeviceMeter;
+use crate::Res;
 
 pub trait Meter {
     fn id(&self) -> u64;
-    fn measure(&mut self) -> Result<f32, Box<dyn Error>>;
+    fn measure(&mut self) -> Res<f32>;
 }
 
 #[derive(Debug, Clone)]

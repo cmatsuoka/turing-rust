@@ -1,4 +1,3 @@
-use std::error;
 use std::fs::File;
 use std::io::BufReader;
 
@@ -7,6 +6,7 @@ use serde::Deserialize;
 use xxhash_rust::xxh3::xxh3_64;
 
 use crate::meter::MeterConfig;
+use crate::Res;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
@@ -95,7 +95,7 @@ pub struct Theme {
     pub stats: Stats,
 }
 
-pub fn load(name: &str) -> Result<Theme, Box<dyn error::Error>> {
+pub fn load(name: &str) -> Res<Theme> {
     let filepath = format!("res/themes/{}/theme.yaml", name);
     let theme: Theme = load_yaml(&filepath)?;
 
@@ -104,7 +104,7 @@ pub fn load(name: &str) -> Result<Theme, Box<dyn error::Error>> {
     Ok(theme)
 }
 
-fn load_yaml<T>(filename: &str) -> Result<T, Box<dyn error::Error>>
+fn load_yaml<T>(filename: &str) -> Res<T>
 where
     T: serde::de::DeserializeOwned,
 {

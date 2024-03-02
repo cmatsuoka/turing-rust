@@ -1,9 +1,9 @@
 use std::cmp::min;
-use std::error::Error;
 
 use lodepng::{Bitmap, RGBA};
 
 use crate::screen::Screen;
+use crate::Res;
 
 #[derive(Debug, Clone)]
 pub struct Framebuffer {
@@ -47,7 +47,7 @@ impl Framebuffer {
         }
     }
 
-    pub fn render_on(&mut self, scr: &mut dyn Screen) -> Result<(), Box<dyn Error>> {
+    pub fn render_on(&mut self, scr: &mut dyn Screen) -> Res<()> {
         let (width, height) = scr.screen_size();
         self.downmix();
         scr.draw_bitmap(&self.fb565_raw, 0, 0, width, height)?;

@@ -1,8 +1,7 @@
-use std::error::Error;
-
 use psutil::{cpu, sensors};
 
 use crate::meter::Meter;
+use crate::Res;
 
 // CPU percentage
 
@@ -13,7 +12,7 @@ pub struct CpuPercentage {
 }
 
 impl CpuPercentage {
-    pub fn new(id: u64) -> Result<Self, Box<dyn Error>> {
+    pub fn new(id: u64) -> Res<Self> {
         Ok(Self {
             id,
             cpc: cpu::CpuPercentCollector::new()?,
@@ -26,7 +25,7 @@ impl Meter for CpuPercentage {
         self.id
     }
 
-    fn measure(&mut self) -> Result<f32, Box<dyn Error>> {
+    fn measure(&mut self) -> Res<f32> {
         let val: f32 = self.cpc.cpu_percent()?;
         Ok(val)
     }
@@ -40,7 +39,7 @@ pub struct CpuTemperature {
 }
 
 impl CpuTemperature {
-    pub fn new(id: u64) -> Result<Self, Box<dyn Error>> {
+    pub fn new(id: u64) -> Res<Self> {
         Ok(Self { id })
     }
 }
@@ -50,7 +49,7 @@ impl Meter for CpuTemperature {
         self.id
     }
 
-    fn measure(&mut self) -> Result<f32, Box<dyn Error>> {
+    fn measure(&mut self) -> Res<f32> {
         let temps = sensors::temperatures();
         for temp in temps {
             match &temp {

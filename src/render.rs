@@ -1,9 +1,9 @@
 use std::collections::HashMap;
-use std::error::Error;
 use std::sync::mpsc;
 
 use crate::meter::{Measurements, MeterConfig};
 use crate::themes;
+use crate::Res;
 
 pub struct Renderer<'a> {
     ch: mpsc::Receiver<Measurements>,
@@ -74,7 +74,7 @@ fn render_graph(_graph: &themes::Graph, value: f32) {
     log::debug!("    Graph: {}", value);
 }
 
-fn load_font(font_path: &str) -> Result<rusttype::Font, Box<dyn Error>> {
+fn load_font(font_path: &str) -> Res<rusttype::Font> {
     log::info!("load font {}", font_path);
     let font_path = std::env::current_dir()?.join(font_path);
     let data = std::fs::read(font_path)?;

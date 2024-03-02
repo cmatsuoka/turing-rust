@@ -1,6 +1,7 @@
 use serialport::{SerialPort, SerialPortType};
-use std::error::Error;
 use std::time::Duration;
+
+use crate::Res;
 
 // Constants and protocol definitions from
 // https://github.com/mathoudebine/turing-smart-screen-python
@@ -29,22 +30,15 @@ const USBMONITOR35: &[u8] = &[0x01, 0x01, 0x01, 0x01, 0x01, 0x01];
 
 pub trait Screen {
     fn screen_size(&self) -> (usize, usize);
-    fn write(&mut self, data: Vec<u8>) -> Result<usize, Box<dyn Error>>;
-    fn read(&mut self, n: usize) -> Result<Vec<u8>, Box<dyn Error>>;
-    fn init(&mut self) -> Result<(), Box<dyn Error>>;
-    fn clear(&mut self) -> Result<(), Box<dyn Error>>;
-    fn screen_on(&mut self) -> Result<(), Box<dyn Error>>;
-    fn screen_off(&mut self) -> Result<(), Box<dyn Error>>;
-    fn set_orientation(&mut self, o: Orientation) -> Result<(), Box<dyn Error>>;
-    fn set_brightness(&mut self, level: usize) -> Result<(), Box<dyn Error>>;
-    fn draw_bitmap(
-        &mut self,
-        data: &[u8],
-        x: usize,
-        y: usize,
-        w: usize,
-        h: usize,
-    ) -> Result<(), Box<dyn Error>>;
+    fn write(&mut self, data: Vec<u8>) -> Res<usize>;
+    fn read(&mut self, n: usize) -> Res<Vec<u8>>;
+    fn init(&mut self) -> Res<()>;
+    fn clear(&mut self) -> Res<()>;
+    fn screen_on(&mut self) -> Res<()>;
+    fn screen_off(&mut self) -> Res<()>;
+    fn set_orientation(&mut self, o: Orientation) -> Res<()>;
+    fn set_brightness(&mut self, level: usize) -> Res<()>;
+    fn draw_bitmap(&mut self, data: &[u8], x: usize, y: usize, w: usize, h: usize) -> Res<()>;
 }
 
 pub struct ScreenRevA {
@@ -53,7 +47,7 @@ pub struct ScreenRevA {
 }
 
 impl ScreenRevA {
-    pub fn new(portname: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn new(portname: &str) -> Res<Self> {
         let name = match portname {
             "AUTO" => auto_detect_port("USB35INCHIPSV2")?,
             name => name.to_string(),
@@ -78,7 +72,7 @@ impl ScreenRevA {
         y0: usize,
         x1: usize,
         y1: usize,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Res<()> {
         let buf: [u8; 6] = [
             ((x0 & 0x03ff) >> 2) as u8,
             (((x0 & 0x0003) << 6) | ((y0 & 0x03ff) >> 4)) as u8,
@@ -102,18 +96,18 @@ impl Screen for ScreenRevA {
         }
     }
 
-    fn write(&mut self, data: Vec<u8>) -> Result<usize, Box<dyn Error>> {
+    fn write(&mut self, data: Vec<u8>) -> Res<usize> {
         let n = self.port.write(&data)?;
         Ok(n)
     }
 
-    fn read(&mut self, n: usize) -> Result<Vec<u8>, Box<dyn Error>> {
+    fn read(&mut self, n: usize) -> Res<Vec<u8>> {
         let mut data = vec![0; n];
         self.port.read_exact(&mut data)?;
         Ok(data)
     }
 
-    fn init(&mut self) -> Result<(), Box<dyn Error>> {
+    fn init(&mut self) -> Res<()> {
         let hello = vec![Command::Hello as u8; 6];
         self.write(hello)?;
 
@@ -125,41 +119,34 @@ impl Screen for ScreenRevA {
         Ok(())
     }
 
-    fn clear(&mut self) -> Result<(), Box<dyn Error>> {
+    fn clear(&mut self) -> Res<()> {
         self.set_orientation(Orientation::Portrait)?; // Orientation must be PORTRAIT before clearing
         self.send_command(Command::Clear, 0, 0, 0, 0)?;
         Ok(())
     }
 
-    fn screen_on(&mut self) -> Result<(), Box<dyn Error>> {
+    fn screen_on(&mut self) -> Res<()> {
         self.send_command(Command::ScreenOn, 0, 0, 0, 0)?;
         Ok(())
     }
 
-    fn screen_off(&mut self) -> Result<(), Box<dyn Error>> {
+    fn screen_off(&mut self) -> Res<()> {
         self.send_command(Command::ScreenOff, 0, 0, 0, 0)?;
         Ok(())
     }
 
-    fn set_orientation(&mut self, o: Orientation) -> Result<(), Box<dyn Error>> {
+    fn set_orientation(&mut self, o: Orientation) -> Res<()> {
         self.orientation = o;
         // TODO: implement orientation command
         Ok(())
     }
 
-    fn set_brightness(&mut self, level: usize) -> Result<(), Box<dyn Error>> {
+    fn set_brightness(&mut self, level: usize) -> Res<()> {
         self.send_command(Command::SetBrightness, !level, 0, 0, 0)?;
         Ok(())
     }
 
-    fn draw_bitmap(
-        &mut self,
-        data: &[u8],
-        x: usize,
-        y: usize,
-        w: usize,
-        h: usize,
-    ) -> Result<(), Box<dyn Error>> {
+    fn draw_bitmap(&mut self, data: &[u8], x: usize, y: usize, w: usize, h: usize) -> Res<()> {
         self.send_command(Command::DisplayBitmap, x, y, x + w - 1, y + h - 1)?;
 
         let (mut start, mut end) = (0, 2 * w);
@@ -172,7 +159,7 @@ impl Screen for ScreenRevA {
     }
 }
 
-fn auto_detect_port(ser: &str) -> Result<String, Box<dyn Error>> {
+fn auto_detect_port(ser: &str) -> Res<String> {
     for p in serialport::available_ports()? {
         match p.port_type {
             SerialPortType::UsbPort(info) => {
