@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::sync::mpsc;
 
-
-
 use crate::meter::{Measurements, MeterConfig};
 use crate::themes;
 

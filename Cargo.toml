@@ -17,6 +17,7 @@ clap = { version = "4.5", features = ["derive"] }
 bevy_reflect = "0.13"
 xxhash-rust = { version = "0.8.5", features = ["xxh3", "const_xxh3"] }
 lodepng = "3.8"
+rgb565 = "0.1"
 
 [profile.release]
 codegen-units = 1
@@ -26,8 +27,8 @@ panic = "abort"
 
 [[bin]]
 name = "turing-screen"
-path = "src/main.rs"
+path = "src/cmd/turing-screen/main.rs"
 
 [[bin]]
 name = "display"
-path = "src/tools/display/main.rs"
+path = "src/cmd/display/main.rs"

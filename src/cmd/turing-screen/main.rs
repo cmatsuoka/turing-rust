@@ -6,20 +6,13 @@ use std::time::Duration;
 
 use clap::Parser;
 use simple_logger::SimpleLogger;
+use turing_screen::cpu::*;
+use turing_screen::meter::{Measurements, Meter, MeterConfig};
+use turing_screen::render::Renderer;
+use turing_screen::scheduler::{Scheduler, Task};
+use turing_screen::screen::ScreenRevA;
+use turing_screen::themes;
 use xxhash_rust::const_xxh3::xxh3_64 as const_xxh3;
-
-use crate::cpu::*;
-use crate::meter::{Measurements, Meter, MeterConfig};
-use crate::render::Renderer;
-use crate::scheduler::{Scheduler, Task};
-use crate::screen::ScreenRevA;
-
-mod cpu;
-mod meter;
-mod render;
-mod scheduler;
-mod screen;
-mod themes;
 
 #[derive(Parser)]
 #[command(name = "turing-screen")]

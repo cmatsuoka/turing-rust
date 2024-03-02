@@ -5,11 +5,11 @@ use std::time::Duration;
 // Constants and protocol definitions from
 // https://github.com/mathoudebine/turing-smart-screen-python
 
-enum Orientation {
+pub enum Orientation {
     Portrait = 0,
-    _Landscape = 2,
-    _ReversePortrait = 1,
-    _ReverseLandscape = 3,
+    Landscape = 2,
+    ReversePortrait = 1,
+    ReverseLandscape = 3,
 }
 
 enum Command {
@@ -21,13 +21,14 @@ enum Command {
     ScreenOn = 109,        // Turns the screen on
     SetBrightness = 110,   // Sets the screen brightness
     _SetOrientation = 121, // Sets the screen orientation
-    _DisplayBitmap = 197,  // Displays an image on the screen
+    DisplayBitmap = 197,   // Displays an image on the screen
 }
 
 // Subrevisions
 const USBMONITOR35: &[u8] = &[0x01, 0x01, 0x01, 0x01, 0x01, 0x01];
 
-trait ScreenOperations {
+pub trait Screen {
+    fn screen_size(&self) -> (usize, usize);
     fn write(&mut self, data: Vec<u8>) -> Result<usize, Box<dyn Error>>;
     fn read(&mut self, n: usize) -> Result<Vec<u8>, Box<dyn Error>>;
     fn init(&mut self) -> Result<(), Box<dyn Error>>;
@@ -35,14 +36,14 @@ trait ScreenOperations {
     fn screen_on(&mut self) -> Result<(), Box<dyn Error>>;
     fn screen_off(&mut self) -> Result<(), Box<dyn Error>>;
     fn set_orientation(&mut self, o: Orientation) -> Result<(), Box<dyn Error>>;
-    fn set_brightness(&mut self, level: u8) -> Result<(), Box<dyn Error>>;
+    fn set_brightness(&mut self, level: usize) -> Result<(), Box<dyn Error>>;
     fn draw_bitmap(
         &mut self,
-        path: String,
-        x: u32,
-        y: u32,
-        w: u32,
-        h: u32,
+        data: &[u8],
+        x: usize,
+        y: usize,
+        w: usize,
+        h: usize,
     ) -> Result<(), Box<dyn Error>>;
 }
 
@@ -57,6 +58,7 @@ impl ScreenRevA {
             "AUTO" => auto_detect_port("USB35INCHIPSV2")?,
             name => name.to_string(),
         };
+        log::debug!("create screen rev A on {}", name);
 
         let port = serialport::new(name, 115_200)
             .timeout(Duration::from_millis(1000))
@@ -66,9 +68,40 @@ impl ScreenRevA {
 
         Ok(Self { port, orientation })
     }
+
+    // Each coordinate has 10 bits
+    // [xxxx xxxx] [xxyy yyyy] [yyyy zzzz] [zzzz zzww] [wwww wwww]
+    fn send_command(
+        &mut self,
+        cmd: Command,
+        x0: usize,
+        y0: usize,
+        x1: usize,
+        y1: usize,
+    ) -> Result<(), Box<dyn Error>> {
+        let buf: [u8; 6] = [
+            ((x0 & 0x03ff) >> 2) as u8,
+            (((x0 & 0x0003) << 6) | ((y0 & 0x03ff) >> 4)) as u8,
+            (((y0 & 0x000f) << 4) | ((x1 & 0x03ff) >> 6)) as u8,
+            (((x1 & 0x003f) << 2) | ((y1 & 0x03ff) >> 8)) as u8,
+            (y1 & 0x00ff) as u8,
+            cmd as u8,
+        ];
+
+        self.write(buf.to_vec())?;
+
+        Ok(())
+    }
 }
 
-impl ScreenOperations for ScreenRevA {
+impl Screen for ScreenRevA {
+    fn screen_size(&self) -> (usize, usize) {
+        match self.orientation {
+            Orientation::Portrait | Orientation::ReversePortrait => (320, 480),
+            Orientation::Landscape | Orientation::ReverseLandscape => (480, 320),
+        }
+    }
+
     fn write(&mut self, data: Vec<u8>) -> Result<usize, Box<dyn Error>> {
         let n = self.port.write(&data)?;
         Ok(n)
@@ -94,17 +127,17 @@ impl ScreenOperations for ScreenRevA {
 
     fn clear(&mut self) -> Result<(), Box<dyn Error>> {
         self.set_orientation(Orientation::Portrait)?; // Orientation must be PORTRAIT before clearing
-        self.write(vec![Command::Clear as u8, 0, 0, 0, 0])?;
+        self.send_command(Command::Clear, 0, 0, 0, 0)?;
         Ok(())
     }
 
     fn screen_on(&mut self) -> Result<(), Box<dyn Error>> {
-        self.write(vec![Command::ScreenOn as u8, 0, 0, 0, 0])?;
+        self.send_command(Command::ScreenOn, 0, 0, 0, 0)?;
         Ok(())
     }
 
     fn screen_off(&mut self) -> Result<(), Box<dyn Error>> {
-        self.write(vec![Command::ScreenOff as u8, 0, 0, 0, 0])?;
+        self.send_command(Command::ScreenOff, 0, 0, 0, 0)?;
         Ok(())
     }
 
@@ -114,19 +147,27 @@ impl ScreenOperations for ScreenRevA {
         Ok(())
     }
 
-    fn set_brightness(&mut self, level: u8) -> Result<(), Box<dyn Error>> {
-        self.write(vec![Command::SetBrightness as u8, !level, 0, 0, 0])?;
+    fn set_brightness(&mut self, level: usize) -> Result<(), Box<dyn Error>> {
+        self.send_command(Command::SetBrightness, !level, 0, 0, 0)?;
         Ok(())
     }
 
     fn draw_bitmap(
         &mut self,
-        _path: String,
-        _x: u32,
-        _y: u32,
-        _w: u32,
-        _h: u32,
+        data: &[u8],
+        x: usize,
+        y: usize,
+        w: usize,
+        h: usize,
     ) -> Result<(), Box<dyn Error>> {
+        self.send_command(Command::DisplayBitmap, x, y, x + w - 1, y + h - 1)?;
+
+        let (mut start, mut end) = (0, 2 * w);
+        for _ in 0..h {
+            self.write(data[start..end].to_owned())?;
+            (start, end) = (end, end + 2 * w);
+        }
+
         Ok(())
     }
 }
