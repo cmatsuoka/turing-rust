@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use serialport::{SerialPort, SerialPortType};
+use std::thread;
 use std::time::Duration;
 
 use crate::Res;
@@ -8,6 +9,7 @@ use crate::Res;
 // Constants and protocol definitions from
 // https://github.com/mathoudebine/turing-smart-screen-python
 
+#[derive(Debug, Clone)]
 pub enum Orientation {
     Portrait = 0,
     Landscape = 2,
@@ -16,23 +18,67 @@ pub enum Orientation {
 }
 
 enum Command {
-    Hello = 69,            // Asks the screen for its model: 3.5", 5" or 7"
-    _Reset = 101,          // Resets the display
-    Clear = 102,           // Clears the display to a white screen
-    _ToBlack = 103,        // Makes the screen go black. NOT TESTED
-    ScreenOff = 108,       // Turns the screen off
-    ScreenOn = 109,        // Turns the screen on
-    SetBrightness = 110,   // Sets the screen brightness
-    _SetOrientation = 121, // Sets the screen orientation
-    DisplayBitmap = 197,   // Displays an image on the screen
+    Hello = 69,           // Asks the screen for its model: 3.5", 5" or 7"
+    _Reset = 101,         // Resets the display
+    Clear = 102,          // Clears the display to a white screen
+    _ToBlack = 103,       // Makes the screen go black. NOT TESTED
+    ScreenOff = 108,      // Turns the screen off
+    ScreenOn = 109,       // Turns the screen on
+    SetBrightness = 110,  // Sets the screen brightness
+    SetOrientation = 121, // Sets the screen orientation
+    DisplayBitmap = 197,  // Displays an image on the screen
 }
 
 // Subrevisions
 const USBMONITOR35: &[u8] = &[0x01, 0x01, 0x01, 0x01, 0x01, 0x01];
 
+// Macro to prepare the command buffer
+macro_rules! cmd {
+    // 1) match cmd!(Command::...)
+    ($a:expr) => {{
+        &[0u8, 0, 0, 0, 0, $a as u8]
+    }};
+    // 2) match cmd!(Command::..., parameter)
+    ($a:expr, $b:expr) => {{
+        &[$b as u8, 0, 0, 0, 0, $a as u8]
+    }};
+    // 3) match cmd!(Command::DisplayBitmap, x0, y0, x1, y1)
+    ($a:expr, $b:expr, $c:expr, $d:expr, $e:expr) => {{
+        &[
+            (($b & 0x03ff) >> 2) as u8,
+            ((($b & 0x0003) << 6) | (($c & 0x03ff) >> 4)) as u8,
+            ((($c & 0x000f) << 4) | (($d & 0x03ff) >> 6)) as u8,
+            ((($d & 0x003f) << 2) | (($e & 0x03ff) >> 8)) as u8,
+            ($e & 0x00ff) as u8,
+            $a as u8, // Command::DisplayBitmap
+        ]
+    }};
+    // 4) match cmd!(Command::SetOrientation, o, width, height)
+    ($a:expr, $b:expr, $c:expr, $d:expr) => {{
+        &[
+            0u8,
+            0,
+            0,
+            0,
+            0,
+            $a as u8,          // Command::SetOrientation
+            100u8 + $b as u8,  // orientation
+            ($c >> 8) as u8,   // width MSB
+            ($c & 0xff) as u8, // width LSB
+            ($d >> 8) as u8,   // height MSB
+            ($d & 0xff) as u8, // height MSB
+            0,
+            0,
+            0,
+            0,
+            0,
+        ]
+    }};
+}
+
 pub trait Screen {
     fn screen_size(&self) -> (usize, usize);
-    fn write(&mut self, data: Vec<u8>) -> Res<usize>;
+    fn write(&mut self, data: &[u8]) -> Res<usize>;
     fn read(&mut self, n: usize) -> Res<Vec<u8>>;
     fn init(&mut self) -> Res<()>;
     fn clear(&mut self) -> Res<()>;
@@ -64,30 +110,6 @@ impl ScreenRevA {
 
         Ok(Self { port, orientation })
     }
-
-    // Each coordinate has 10 bits
-    // [xxxx xxxx] [xxyy yyyy] [yyyy zzzz] [zzzz zzww] [wwww wwww]
-    fn send_command(
-        &mut self,
-        cmd: Command,
-        x0: usize,
-        y0: usize,
-        x1: usize,
-        y1: usize,
-    ) -> Res<()> {
-        let buf: [u8; 6] = [
-            ((x0 & 0x03ff) >> 2) as u8,
-            (((x0 & 0x0003) << 6) | ((y0 & 0x03ff) >> 4)) as u8,
-            (((y0 & 0x000f) << 4) | ((x1 & 0x03ff) >> 6)) as u8,
-            (((x1 & 0x003f) << 2) | ((y1 & 0x03ff) >> 8)) as u8,
-            (y1 & 0x00ff) as u8,
-            cmd as u8,
-        ];
-
-        self.write(buf.to_vec())?;
-
-        Ok(())
-    }
 }
 
 impl Screen for ScreenRevA {
@@ -97,9 +119,8 @@ impl Screen for ScreenRevA {
             Orientation::Landscape | Orientation::ReverseLandscape => (480, 320),
         }
     }
-
-    fn write(&mut self, data: Vec<u8>) -> Res<usize> {
-        let n = self.port.write(&data)?;
+    fn write(&mut self, data: &[u8]) -> Res<usize> {
+        let n = self.port.write(data)?;
         Ok(n)
     }
 
@@ -110,8 +131,8 @@ impl Screen for ScreenRevA {
     }
 
     fn init(&mut self) -> Res<()> {
-        let hello = vec![Command::Hello as u8; 6];
-        self.write(hello)?;
+        log::debug!("init screen");
+        self.write(cmd!(Command::Hello))?;
 
         let res = self.read(6)?;
         if res != USBMONITOR35 {
@@ -122,42 +143,49 @@ impl Screen for ScreenRevA {
     }
 
     fn clear(&mut self) -> Res<()> {
+        log::debug!("clear screen");
         self.set_orientation(Orientation::Portrait)?; // Orientation must be PORTRAIT before clearing
-        self.send_command(Command::Clear, 0, 0, 0, 0)?;
+        self.write(cmd!(Command::Clear))?;
         Ok(())
     }
 
     fn screen_on(&mut self) -> Res<()> {
-        self.send_command(Command::ScreenOn, 0, 0, 0, 0)?;
+        log::debug!("screen on");
+        self.write(cmd!(Command::ScreenOn))?;
         Ok(())
     }
 
     fn screen_off(&mut self) -> Res<()> {
-        self.send_command(Command::ScreenOff, 0, 0, 0, 0)?;
+        log::debug!("screen off");
+        self.write(cmd!(Command::ScreenOff))?;
         Ok(())
     }
 
     fn set_orientation(&mut self, o: Orientation) -> Res<()> {
-        self.orientation = o;
-        // TODO: implement orientation command
+        log::debug!("set screen orientation to {:?}", o);
+        self.orientation = o.clone();
+        let (width, height) = self.screen_size();
+        self.write(cmd!(Command::SetOrientation, o, width, height))?;
         Ok(())
     }
 
     fn set_brightness(&mut self, level: usize) -> Res<()> {
-        self.send_command(Command::SetBrightness, !level, 0, 0, 0)?;
+        log::debug!("set screen brightness to {}", level);
+        self.write(cmd!(Command::SetBrightness, !level))?;
         Ok(())
     }
 
     fn draw_bitmap(&mut self, data: &[u8], x: usize, y: usize, w: usize, h: usize) -> Res<()> {
-        self.send_command(Command::DisplayBitmap, x, y, x + w - 1, y + h - 1)?;
+        log::debug!("draw bitmap @{},{}+{}x{}", x, y, w, h);
+        if w * h > data.len() {
+            return Err("image dimensions larger than image data".into());
+        }
 
-	if w * h > data.len() {
-		return Err("image dimensions larger than image data".into());
-	}
+        self.write(cmd!(Command::DisplayBitmap, x, y, x + w - 1, y + h - 1))?;
 
         let (mut start, mut end) = (0, 2 * w);
         for _ in 0..h {
-            self.write(data[start..end].to_owned())?;
+            self.write(&data[start..end])?;
             (start, end) = (end, end + 2 * w);
         }
 
