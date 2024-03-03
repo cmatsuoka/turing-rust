@@ -1,21 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use serialport::{SerialPort, SerialPortType};
-use std::thread;
-use std::time::Duration;
+use std::io::{Read, Write};
 
-use crate::Res;
+use crate::serial_port;
+use crate::{Orientation, Res, Screen};
 
 // Constants and protocol definitions from
 // https://github.com/mathoudebine/turing-smart-screen-python
-
-#[derive(Debug, Clone)]
-pub enum Orientation {
-    Portrait = 0,
-    Landscape = 2,
-    ReversePortrait = 1,
-    ReverseLandscape = 3,
-}
 
 enum Command {
     Hello = 69,           // Asks the screen for its model: 3.5", 5" or 7"
@@ -62,7 +53,7 @@ macro_rules! cmd {
             0,
             0,
             $a as u8,          // Command::SetOrientation
-            100u8 + $b as u8,  // orientation
+            100u8 + $b,        // orientation
             ($c >> 8) as u8,   // width MSB
             ($c & 0xff) as u8, // width LSB
             ($d >> 8) as u8,   // height MSB
@@ -76,39 +67,32 @@ macro_rules! cmd {
     }};
 }
 
-pub trait Screen {
-    fn screen_size(&self) -> (usize, usize);
-    fn write(&mut self, data: &[u8]) -> Res<usize>;
-    fn read(&mut self, n: usize) -> Res<Vec<u8>>;
-    fn init(&mut self) -> Res<()>;
-    fn clear(&mut self) -> Res<()>;
-    fn screen_on(&mut self) -> Res<()>;
-    fn screen_off(&mut self) -> Res<()>;
-    fn set_orientation(&mut self, o: Orientation) -> Res<()>;
-    fn set_brightness(&mut self, level: usize) -> Res<()>;
-    fn draw_bitmap(&mut self, data: &[u8], x: usize, y: usize, w: usize, h: usize) -> Res<()>;
+fn orientation(o: Orientation) -> u8 {
+    match o {
+        Orientation::Portrait => 0,
+        Orientation::Landscape => 2,
+        Orientation::ReversePortrait => 1,
+        Orientation::ReverseLandscape => 3,
+    }
 }
 
 pub struct ScreenRevA {
-    port: Box<dyn SerialPort>,
+    port: serial_port::SerialPort,
     orientation: Orientation,
 }
 
 impl ScreenRevA {
     pub fn new(portname: &str) -> Res<Self> {
         let name = match portname {
-            "AUTO" => auto_detect_port("USB35INCHIPSV2")?,
+            "AUTO" => serial_port::detect("USB35INCHIPSV2")?,
             name => name.to_string(),
         };
         log::debug!("create screen rev A on {}", name);
 
-        let port = serialport::new(name, 115_200)
-            .timeout(Duration::from_millis(1000))
-            .open()?;
-
-        let orientation = Orientation::Portrait;
-
-        Ok(Self { port, orientation })
+        Ok(Self {
+            port: serial_port::SerialPort::new(&name, 115_200)?,
+            orientation: Orientation::Portrait,
+        })
     }
 }
 
@@ -165,7 +149,7 @@ impl Screen for ScreenRevA {
         log::debug!("set screen orientation to {:?}", o);
         self.orientation = o.clone();
         let (width, height) = self.screen_size();
-        self.write(cmd!(Command::SetOrientation, o, width, height))?;
+        self.write(cmd!(Command::SetOrientation, orientation(o), width, height))?;
         Ok(())
     }
 
@@ -191,19 +175,4 @@ impl Screen for ScreenRevA {
 
         Ok(())
     }
-}
-
-fn auto_detect_port(ser: &str) -> Res<String> {
-    for p in serialport::available_ports()? {
-        match p.port_type {
-            SerialPortType::UsbPort(info) => {
-                let serial = info.serial_number.as_ref().map_or("", String::as_str);
-                if serial == ser {
-                    return Ok(p.port_name);
-                }
-            }
-            _ => todo!(),
-        }
-    }
-    Err(format!("no serial device matching {}", ser).into())
 }

@@ -2,16 +2,13 @@
 
 use std::cmp::min;
 
-use lodepng::{Bitmap, RGBA};
-
-use crate::screen::Screen;
-use crate::Res;
+use crate::{Rect, Res, Rgba, Screen};
 
 #[derive(Debug, Clone)]
 pub struct Framebuffer {
     width: usize,
     height: usize,
-    fb888: Vec<RGBA>,
+    fb888: Vec<Rgba>,
     fb565_raw: Vec<u8>,
 }
 
@@ -20,19 +17,18 @@ impl Framebuffer {
         Self {
             width,
             height,
-            fb888: vec![RGBA::new(0, 0, 0, 0xff); width * height],
+            fb888: vec![Rgba::new(0, 0, 0, 0xff); width * height],
             fb565_raw: vec![0; 2 * width * height],
         }
     }
 
-    pub fn copy_from(&mut self, bitmap: Bitmap<RGBA>) {
-        let h = min::<usize>(bitmap.height, self.height);
+    pub fn copy_from(&mut self, bitmap: &[Rgba], rect: &Rect) {
+        let h = min::<usize>(rect.h, self.height);
         for y in 0..h {
             let offset = y * self.width;
-            let src_offset = y * bitmap.width;
-            let w = min::<usize>(bitmap.width, self.width);
-            self.fb888[offset..offset + w]
-                .copy_from_slice(&bitmap.buffer[src_offset..src_offset + w]);
+            let src_offset = y * rect.w;
+            let w = min::<usize>(rect.w, self.width);
+            self.fb888[offset..offset + w].copy_from_slice(&bitmap[src_offset..src_offset + w]);
         }
     }
 
@@ -49,7 +45,7 @@ impl Framebuffer {
         }
     }
 
-    pub fn render_on(&mut self, scr: &mut dyn Screen) -> Res<()> {
+    pub fn render_on(&mut self, scr: &mut Box<dyn Screen>) -> Res<()> {
         let (width, height) = scr.screen_size();
         self.downmix();
         scr.draw_bitmap(&self.fb565_raw, 0, 0, width, height)?;
