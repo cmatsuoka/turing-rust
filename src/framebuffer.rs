@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::cmp::min;
-
 use crate::{Rect, Res, Rgba, Screen};
 
 #[derive(Debug, Clone)]
@@ -9,7 +7,6 @@ pub struct Framebuffer {
     width: usize,
     height: usize,
     fb888: Vec<Rgba>,
-    fb565_raw: Vec<u8>,
 }
 
 impl Framebuffer {
@@ -18,38 +15,82 @@ impl Framebuffer {
             width,
             height,
             fb888: vec![Rgba::new(0, 0, 0, 0xff); width * height],
-            fb565_raw: vec![0; 2 * width * height],
         }
     }
 
     pub fn copy_from(&mut self, bitmap: &[Rgba], rect: &Rect) {
-        let h = min::<usize>(rect.h, self.height);
-        for y in 0..h {
-            let offset = y * self.width;
-            let src_offset = y * rect.w;
-            let w = min::<usize>(rect.w, self.width);
-            self.fb888[offset..offset + w].copy_from_slice(&bitmap[src_offset..src_offset + w]);
+        let r = rect.clip(self.width, self.height);
+
+        for y in 0..r.h {
+            let offset = (r.y + y) * self.width + r.x;
+            let src_offset = y * r.w;
+            self.fb888[offset..offset + r.w].copy_from_slice(&bitmap[src_offset..src_offset + r.w]);
         }
     }
 
-    // RGB565 bit packing:
-    // [rrrr rggg] [gggb bbbb]  =(LE)=>  [gggb bbbb] [rrrr rggg]
-    fn downmix(&mut self) {
-        let mut j = 0;
-        for i in 0..self.fb888.len() {
-            let p = self.fb888[i];
-            self.fb565_raw[j] = ((p.g & 0x1c) << 3) | (p.b >> 3);
-            j += 1;
-            self.fb565_raw[j] = (p.r & 0xf8) | (p.g >> 5);
-            j += 1;
-        }
-    }
-
-    pub fn render_on(&mut self, scr: &mut Box<dyn Screen>) -> Res<()> {
-        let (width, height) = scr.screen_size();
-        self.downmix();
-        scr.draw_bitmap(&self.fb565_raw, 0, 0, width, height)?;
-
+    pub fn render_on(&mut self, scr: &mut Box<dyn Screen>, rect: &Rect) -> Res<()> {
+        scr.draw_bitmap(&self.fb888, rect)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_copy_from() {
+        let bitmap = &[
+            Rgba::new(1, 1, 1, 1),
+            Rgba::new(2, 2, 2, 2),
+            Rgba::new(3, 3, 3, 3),
+            Rgba::new(4, 4, 4, 4),
+        ];
+
+        let mut fb = Framebuffer::new(3, 3);
+        fb.copy_from(bitmap, &Rect::new(1, 1, 2, 2));
+
+        assert_eq!(
+            fb.fb888,
+            &[
+                Rgba::new(0, 0, 0, 255),
+                Rgba::new(0, 0, 0, 255),
+                Rgba::new(0, 0, 0, 255),
+                Rgba::new(0, 0, 0, 255),
+                Rgba::new(1, 1, 1, 1),
+                Rgba::new(2, 2, 2, 2),
+                Rgba::new(0, 0, 0, 255),
+                Rgba::new(3, 3, 3, 3),
+                Rgba::new(4, 4, 4, 4),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_copy_from_clipped() {
+        let bitmap = &[
+            Rgba::new(1, 1, 1, 1),
+            Rgba::new(2, 2, 2, 2),
+            Rgba::new(3, 3, 3, 3),
+            Rgba::new(4, 4, 4, 4),
+        ];
+
+        let mut fb = Framebuffer::new(3, 3);
+        fb.copy_from(bitmap, &Rect::new(2, 2, 2, 2));
+
+        assert_eq!(
+            fb.fb888,
+            &[
+                Rgba::new(0, 0, 0, 255),
+                Rgba::new(0, 0, 0, 255),
+                Rgba::new(0, 0, 0, 255),
+                Rgba::new(0, 0, 0, 255),
+                Rgba::new(0, 0, 0, 255),
+                Rgba::new(0, 0, 0, 255),
+                Rgba::new(0, 0, 0, 255),
+                Rgba::new(0, 0, 0, 255),
+                Rgba::new(1, 1, 1, 1),
+            ]
+        );
     }
 }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::cmp::min;
 use std::error::Error;
 
 use crate::screen_rev_a::ScreenRevA;
@@ -23,6 +24,23 @@ impl Rect {
     pub fn new(x: usize, y: usize, w: usize, h: usize) -> Self {
         Self { x, y, w, h }
     }
+
+    #[inline]
+    fn clip(&self, width: usize, height: usize) -> Rect {
+        if self.x >= width || self.y >= height {
+            Rect::new(self.x, self.y, 0, 0)
+        } else {
+            let w = min(self.w, width - self.x);
+            let h = min(self.h, height - self.y);
+            Rect::new(self.x, self.y, w, h)
+        }
+    }
+}
+
+impl std::fmt::Display for Rect {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "@{},{}+{}x{}", self.x, self.y, self.w, self.h)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -43,7 +61,7 @@ pub trait Screen {
     fn screen_off(&mut self) -> Res<()>;
     fn set_orientation(&mut self, o: Orientation) -> Res<()>;
     fn set_brightness(&mut self, level: usize) -> Res<()>;
-    fn draw_bitmap(&mut self, data: &[u8], x: usize, y: usize, w: usize, h: usize) -> Res<()>;
+    fn draw_bitmap(&mut self, data: &[Rgba], rect: &Rect) -> Res<()>;
 }
 
 pub fn new(portname: &str) -> Res<Box<dyn Screen>> {

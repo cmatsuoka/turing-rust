@@ -4,9 +4,13 @@ use std::io::{Read, Write};
 
 use crate::serial_port;
 use crate::{Orientation, Res, Screen};
+use crate::{Rect, Rgba};
 
 // Constants and protocol definitions from
 // https://github.com/mathoudebine/turing-smart-screen-python
+
+const WIDTH: usize = 320;
+const HEIGHT: usize = 480;
 
 enum Command {
     Hello = 69,           // Asks the screen for its model: 3.5", 5" or 7"
@@ -79,6 +83,7 @@ fn orientation(o: Orientation) -> u8 {
 pub struct ScreenRevA {
     port: serial_port::SerialPort,
     orientation: Orientation,
+    fb565_raw: Vec<u8>,
 }
 
 impl ScreenRevA {
@@ -92,15 +97,33 @@ impl ScreenRevA {
         Ok(Self {
             port: serial_port::SerialPort::new(&name, 115_200)?,
             orientation: Orientation::Portrait,
+            fb565_raw: vec![0u8; 2 * WIDTH * HEIGHT],
         })
+    }
+
+    // RGB565 bit packing:
+    // [rrrr rggg] [gggb bbbb]  =(LE)=>  [gggb bbbb] [rrrr rggg]
+    fn downmix(&mut self, data: &[Rgba], rect: &Rect) {
+        for y in rect.y..rect.y + rect.h {
+            let mut offset = y * rect.w + rect.x;
+            let mut j = 2 * offset;
+            for _ in rect.x..rect.x + rect.w {
+                let p = data[offset];
+                offset += 1;
+                self.fb565_raw[j] = ((p.g & 0x1c) << 3) | (p.b >> 3);
+                j += 1;
+                self.fb565_raw[j] = (p.r & 0xf8) | (p.g >> 5);
+                j += 1;
+            }
+        }
     }
 }
 
 impl Screen for ScreenRevA {
     fn screen_size(&self) -> (usize, usize) {
         match self.orientation {
-            Orientation::Portrait | Orientation::ReversePortrait => (320, 480),
-            Orientation::Landscape | Orientation::ReverseLandscape => (480, 320),
+            Orientation::Portrait | Orientation::ReversePortrait => (WIDTH, HEIGHT),
+            Orientation::Landscape | Orientation::ReverseLandscape => (HEIGHT, WIDTH),
         }
     }
     fn write(&mut self, data: &[u8]) -> Res<usize> {
@@ -159,18 +182,28 @@ impl Screen for ScreenRevA {
         Ok(())
     }
 
-    fn draw_bitmap(&mut self, data: &[u8], x: usize, y: usize, w: usize, h: usize) -> Res<()> {
-        log::debug!("draw bitmap @{},{}+{}x{}", x, y, w, h);
-        if w * h > data.len() {
+    fn draw_bitmap(&mut self, data: &[Rgba], rect: &Rect) -> Res<()> {
+        log::debug!("draw bitmap {}", rect);
+        if rect.w * rect.h > data.len() {
             return Err("image dimensions larger than image data".into());
         }
 
-        self.write(cmd!(Command::DisplayBitmap, x, y, x + w - 1, y + h - 1))?;
+        let (width, height) = self.screen_size();
+        let r = rect.clip(width, height);
+        self.downmix(data, &r);
+        self.write(cmd!(
+            Command::DisplayBitmap,
+            r.x,
+            r.y,
+            r.x + rect.w - 1,
+            r.y + rect.h - 1
+        ))?;
 
-        let (mut start, mut end) = (0, 2 * w);
-        for _ in 0..h {
-            self.write(&data[start..end])?;
-            (start, end) = (end, end + 2 * w);
+        let (mut start, mut end) = (0, 2 * r.w);
+        for _ in r.y..r.y + r.h {
+            let data565 = &self.fb565_raw[start..end].to_owned();
+            self.write(data565)?;
+            (start, end) = (end, end + 2 * r.w);
         }
 
         Ok(())
