@@ -2,6 +2,8 @@
 
 use std::cmp::min;
 use std::error::Error;
+use std::io::Read;
+use std::io::Write;
 
 use crate::screen_rev_a::ScreenRevA;
 
@@ -66,4 +68,39 @@ pub trait Screen {
 
 pub fn new(portname: &str) -> Res<Box<dyn Screen>> {
     Ok(Box::new(ScreenRevA::new(portname)?))
+}
+
+pub trait ScreenPort: Read + Write {
+    fn get_buf(&self) -> Vec<u8>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rect() {
+        let r = Rect::new(2, 3, 4, 5);
+        assert_eq!(r.x, 2);
+        assert_eq!(r.y, 3);
+        assert_eq!(r.w, 4);
+        assert_eq!(r.h, 5);
+        assert_eq!(format!("{}", r), "@2,3+4x5");
+    }
+
+    #[test]
+    fn test_rect_clip() {
+        for tc in vec![
+            (Rect::new(5, 10, 15, 20), Rect::new(5, 10, 15, 20)), // fully inside
+            (Rect::new(5, 10, 50, 50), Rect::new(5, 10, 20, 25)), // clipped
+            (Rect::new(30, 10, 50, 50), Rect::new(30, 10, 0, 0)), // off-screen x
+            (Rect::new(5, 40, 50, 50), Rect::new(5, 40, 0, 0)),   // off-screen y
+        ] {
+            let r = tc.0.clip(25, 35);
+            assert_eq!(r.x, tc.1.x);
+            assert_eq!(r.y, tc.1.y);
+            assert_eq!(r.w, tc.1.w);
+            assert_eq!(r.h, tc.1.h);
+        }
+    }
 }

@@ -7,6 +7,7 @@ use std::time::Duration;
 use serialport;
 
 use crate::Res;
+use crate::ScreenPort;
 
 pub struct SerialPort {
     port: Box<dyn serialport::SerialPort>,
@@ -38,6 +39,12 @@ impl Write for SerialPort {
     #[inline]
     fn flush(&mut self) -> Result<(), std::io::Error> {
         self.port.flush()
+    }
+}
+
+impl ScreenPort for SerialPort {
+    fn get_buf(&self) -> Vec<u8> {
+        Vec::<u8>::new()
     }
 }
 
