@@ -188,9 +188,9 @@ impl Screen for ScreenRevA {
         let (width, height) = self.screen_size();
         let r = rect.clip(width, height);
 
-	if r.w == 0 || r.h == 0 {
-		return Ok(())
-	}
+        if r.w == 0 || r.h == 0 {
+            return Ok(());
+        }
 
         self.downmix(fb888, &r);
         self.write(cmd!(

@@ -12,7 +12,8 @@ pub mod screen_rev_a;
 pub mod serial_port;
 
 type Res<T> = Result<T, Box<dyn Error>>;
-type Rgba = rgb::RGBA<u8>;
+
+pub type Rgba = rgb::RGBA<u8>;
 
 #[derive(Debug, Clone)]
 pub struct Rect {
