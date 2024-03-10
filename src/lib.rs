@@ -63,7 +63,7 @@ pub trait Screen {
     fn screen_off(&mut self) -> Res<()>;
     fn set_orientation(&mut self, o: Orientation) -> Res<()>;
     fn set_brightness(&mut self, level: usize) -> Res<()>;
-    fn draw_bitmap(&mut self, data: &[Rgba], rect: &Rect) -> Res<()>;
+    fn expose_framebuffer(&mut self, fb888: &[Rgba], rect: &Rect) -> Res<()>;
 }
 
 pub fn new(portname: &str) -> Res<Box<dyn Screen>> {

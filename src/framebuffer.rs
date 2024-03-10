@@ -29,7 +29,7 @@ impl Framebuffer {
     }
 
     pub fn render_on(&mut self, scr: &mut Box<dyn Screen>, rect: &Rect) -> Res<()> {
-        scr.draw_bitmap(&self.fb888, rect)?;
+        scr.expose_framebuffer(&self.fb888, rect)?;
         Ok(())
     }
 }

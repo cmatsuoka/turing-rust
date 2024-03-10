@@ -103,13 +103,13 @@ impl ScreenRevA {
 
     // RGB565 bit packing:
     // [rrrr rggg] [gggb bbbb]  =(LE)=>  [gggb bbbb] [rrrr rggg]
-    fn downmix(&mut self, data: &[Rgba], rect: &Rect) {
+    fn downmix(&mut self, fb888: &[Rgba], rect: &Rect) {
         let (width, _) = self.screen_size();
         for y in rect.y..rect.y + rect.h {
             let mut offset = y * width + rect.x; // fb888 vector offset
             let mut j = 2 * offset; // fb565 vector offset
             for _ in 0..rect.w {
-                let p = data[offset];
+                let p = fb888[offset];
                 offset += 1;
                 self.fb565_raw[j] = ((p.g & 0x1c) << 3) | (p.b >> 3);
                 j += 1;
@@ -183,15 +183,16 @@ impl Screen for ScreenRevA {
         Ok(())
     }
 
-    fn draw_bitmap(&mut self, data: &[Rgba], rect: &Rect) -> Res<()> {
-        log::debug!("draw bitmap {}", rect);
-        if rect.w * rect.h > data.len() {
-            return Err("image dimensions larger than image data".into());
-        }
-
+    fn expose_framebuffer(&mut self, fb888: &[Rgba], rect: &Rect) -> Res<()> {
+        log::debug!("expose framebuffer {}", rect);
         let (width, height) = self.screen_size();
         let r = rect.clip(width, height);
-        self.downmix(data, &r);
+
+	if r.w == 0 || r.h == 0 {
+		return Ok(())
+	}
+
+        self.downmix(fb888, &r);
         self.write(cmd!(
             Command::DisplayBitmap,
             r.x,
@@ -364,12 +365,12 @@ mod tests {
     }
 
     #[test]
-    fn test_draw_bitmap() -> Res<()> {
+    fn test_expose_framebuffer() -> Res<()> {
         let fake_port = FakePort::new(Vec::<u8>::new());
         let mut scr = fake_screen(fake_port);
         scr.fb565_raw = vec![0u8; 2 * 320 * 2];
         let rgb888 = &[Rgba::new(4, 4, 4, 0); 320 * 2];
-        scr.draw_bitmap(rgb888, &Rect::new(1, 1, 4, 1))?;
+        scr.expose_framebuffer(rgb888, &Rect::new(1, 1, 4, 1))?;
         assert_eq!(
             scr.port.get_buf(),
             vec![0x00, 0x40, 0x10, 0x10, 0x01, 197, 32, 0, 32, 0, 32, 0, 32, 0]
@@ -378,15 +379,12 @@ mod tests {
     }
 
     #[test]
-    fn test_draw_bitmap_invalid() -> Res<()> {
+    fn test_expose_framebuffer_offscreen() -> Res<()> {
         let fake_port = FakePort::new(Vec::<u8>::new());
         let mut scr = fake_screen(fake_port);
-        let rgb888 = &[Rgba::new(1, 1, 1, 1); 3];
-        let err = scr
-            .draw_bitmap(rgb888, &Rect::new(0, 0, 2, 2))
-            .err()
-            .unwrap();
-        assert_eq!(err.to_string(), "image dimensions larger than image data");
+        let rgb888 = &[Rgba::new(4, 4, 4, 0); 320 * 2];
+        scr.expose_framebuffer(rgb888, &Rect::new(10, 20, 0, 0))?;
+        assert_eq!(scr.port.get_buf(), vec![]);
         Ok(())
     }
 }
