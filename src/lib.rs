@@ -15,12 +15,16 @@ type Res<T> = Result<T, Box<dyn Error>>;
 
 pub type Rgba = rgb::RGBA<u8>;
 
+pub const BLACK: Rgba = Rgba::new(0, 0, 0, 255);
+pub const WHITE: Rgba = Rgba::new(255, 255, 255, 255);
+pub const TRANSPARENT: Rgba = Rgba::new(0, 0, 0, 0);
+
 #[derive(Debug, Clone)]
 pub struct Rect {
-    x: usize,
-    y: usize,
-    w: usize,
-    h: usize,
+    pub x: usize,
+    pub y: usize,
+    pub w: usize,
+    pub h: usize,
 }
 
 impl Rect {
@@ -44,6 +48,31 @@ impl std::fmt::Display for Rect {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "@{},{}+{}x{}", self.x, self.y, self.w, self.h)
     }
+}
+
+#[derive(Debug)]
+pub struct Coord {
+    pub x: usize,
+    pub y: usize,
+}
+
+impl Coord {
+    pub fn new(x: usize, y: usize) -> Self {
+        Self { x, y }
+    }
+}
+
+impl std::fmt::Display for Coord {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "@{},{}", self.x, self.y)
+    }
+}
+
+#[derive(Debug)]
+pub struct Image<'a> {
+    pub buffer: &'a mut [Rgba],
+    pub width: usize,
+    pub height: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -78,6 +107,14 @@ pub trait ScreenPort: Read + Write {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_coord() {
+        let pos = Coord::new(10, 20);
+        assert_eq!(pos.x, 10);
+        assert_eq!(pos.y, 20);
+        assert_eq!(format!("{}", pos), "@10,20");
+    }
 
     #[test]
     fn test_rect() {
