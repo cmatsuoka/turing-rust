@@ -53,6 +53,24 @@ impl Framebuffer {
         }
     }
 
+    pub fn blend_to_image(&self, image: &mut Image, crop: &Rect, dest: &Coord) {
+        let crop = crop.clip(
+            min(image.width, self.width - dest.x),
+            min(image.height, self.height - dest.y),
+        );
+
+        for y in 0..crop.h {
+            let offset = (dest.y + y) * self.width + dest.x;
+            let src_offset = (crop.y + y) * image.width + crop.x;
+            for x in 0..crop.w {
+                let fg = image.buffer[src_offset + x];
+                let mut bg = self.fb888[offset + x];
+                Self::blend_alpha(&mut bg, fg);
+                image.buffer[src_offset + x] = bg;
+            }
+        }
+    }
+
     pub fn render_on(&mut self, scr: &mut Box<dyn Screen>, rect: &Rect) -> Res<()> {
         scr.expose_framebuffer(&self.fb888, rect)?;
         Ok(())
@@ -230,6 +248,33 @@ mod tests {
                 Rgba::new(0, 0, 0, 255),
                 Rgba::new(0x20, 0x10, 0x08, 255),
                 Rgba::new(0x00, 0x00, 0x00, 255),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_blend_to_image() {
+        let mut image = Image {
+            buffer: &mut [
+                Rgba::new(0x80, 0x40, 0x20, 0xff),
+                Rgba::new(0x80, 0x40, 0x20, 0x80),
+                Rgba::new(0x80, 0x40, 0x20, 0x40),
+                Rgba::new(0x80, 0x40, 0x20, 0x00),
+            ],
+            width: 2,
+            height: 2,
+        };
+
+        let fb = Framebuffer::new(3, 3);
+        fb.blend_to_image(&mut image, &Rect::new(0, 0, 3, 3), &Coord::new(1, 1));
+
+        assert_eq!(
+            image.buffer,
+            &[
+                Rgba::new(0x80, 0x40, 0x20, 0xff),
+                Rgba::new(0x40, 0x20, 0x10, 0xff),
+                Rgba::new(0x20, 0x10, 0x08, 0xff),
+                Rgba::new(0x00, 0x00, 0x00, 0xff),
             ]
         );
     }

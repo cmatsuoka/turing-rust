@@ -109,7 +109,7 @@ impl ScreenRevA {
         let mut ofs565 = 2 * ofs888; // fb565 vector offset in bytes
         let stride = width * 2; // width of rgb565 framebuffer in bytes
 
-        for y in 0..rect.h {
+        for _ in 0..rect.h {
             // line start y coordinate
             let mut src = ofs888;
             let mut dest = ofs565;
