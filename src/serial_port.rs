@@ -4,8 +4,6 @@ use std::io::Read;
 use std::io::Write;
 use std::time::Duration;
 
-use serialport;
-
 use crate::Res;
 use crate::ScreenPort;
 

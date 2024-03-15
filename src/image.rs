@@ -2,21 +2,24 @@
 
 use std::cmp::min;
 
-use crate::{Coord, Image, Rect, Res, Rgba, Screen};
+use crate::colors;
+use crate::{Coord, Rect, Res, Rgba, Screen};
+
+pub type Framebuffer = Image;
 
 #[derive(Debug, Clone)]
-pub struct Framebuffer {
-    width: usize,
-    height: usize,
-    fb888: Vec<Rgba>,
+pub struct Image {
+    pub width: usize,
+    pub height: usize,
+    pub buffer: Vec<Rgba>,
 }
 
-impl Framebuffer {
+impl Image {
     pub fn new(width: usize, height: usize) -> Self {
         Self {
             width,
             height,
-            fb888: vec![crate::BLACK; width * height],
+            buffer: vec![colors::BLACK; width * height],
         }
     }
 
@@ -29,7 +32,7 @@ impl Framebuffer {
         for y in 0..crop.h {
             let offset = (dest.y + y) * self.width + crop.x + dest.x;
             let src_offset = (crop.y + y) * image.width + crop.x;
-            self.fb888[offset..offset + crop.w]
+            self.buffer[offset..offset + crop.w]
                 .copy_from_slice(&image.buffer[src_offset..src_offset + crop.w]);
         }
     }
@@ -46,7 +49,7 @@ impl Framebuffer {
             for x in 0..crop.w {
                 let fg = image.buffer[src_offset + x];
                 if fg.a > 0 {
-                    let bg = &mut self.fb888[offset + x];
+                    let bg = &mut self.buffer[offset + x];
                     Self::blend_alpha(bg, fg);
                 }
             }
@@ -64,15 +67,15 @@ impl Framebuffer {
             let src_offset = (crop.y + y) * image.width + crop.x;
             for x in 0..crop.w {
                 let fg = image.buffer[src_offset + x];
-                let mut bg = self.fb888[offset + x];
+                let mut bg = self.buffer[offset + x];
                 Self::blend_alpha(&mut bg, fg);
                 image.buffer[src_offset + x] = bg;
             }
         }
     }
 
-    pub fn render_on(&mut self, scr: &mut Box<dyn Screen>, rect: &Rect) -> Res<()> {
-        scr.expose_framebuffer(&self.fb888, rect)?;
+    pub fn render_on(&self, scr: &mut Box<dyn Screen>, crop: &Rect, pos: &Coord) -> Res<()> {
+        scr.expose_framebuffer(self, crop, pos)?;
         Ok(())
     }
 
@@ -102,7 +105,7 @@ mod tests {
     #[test]
     fn test_copy_image() {
         let image = Image {
-            buffer: &mut [
+            buffer: vec![
                 Rgba::new(1, 1, 1, 1),
                 Rgba::new(2, 2, 2, 2),
                 Rgba::new(3, 3, 3, 3),
@@ -116,7 +119,7 @@ mod tests {
         fb.copy_image(&image, &Rect::new(0, 0, 20, 20), &Coord::new(1, 1));
 
         assert_eq!(
-            fb.fb888,
+            fb.buffer,
             &[
                 Rgba::new(0, 0, 0, 255),
                 Rgba::new(0, 0, 0, 255),
@@ -134,7 +137,7 @@ mod tests {
     #[test]
     fn test_copy_image_cropped() {
         let image = Image {
-            buffer: &mut [
+            buffer: vec![
                 Rgba::new(1, 1, 1, 1),
                 Rgba::new(2, 2, 2, 2),
                 Rgba::new(3, 3, 3, 3),
@@ -148,7 +151,7 @@ mod tests {
         fb.copy_image(&image, &Rect::new(0, 1, 2, 1), &Coord::new(1, 1));
 
         assert_eq!(
-            fb.fb888,
+            fb.buffer,
             &[
                 Rgba::new(0, 0, 0, 255),
                 Rgba::new(0, 0, 0, 255),
@@ -166,7 +169,7 @@ mod tests {
     #[test]
     fn test_copy_image_clipped() {
         let image = Image {
-            buffer: &mut [
+            buffer: vec![
                 Rgba::new(1, 1, 1, 1),
                 Rgba::new(2, 2, 2, 2),
                 Rgba::new(3, 3, 3, 3),
@@ -180,7 +183,7 @@ mod tests {
         fb.copy_image(&image, &Rect::new(0, 0, 2, 2), &Coord::new(2, 2));
 
         assert_eq!(
-            fb.fb888,
+            fb.buffer,
             &[
                 Rgba::new(0, 0, 0, 255),
                 Rgba::new(0, 0, 0, 255),
@@ -223,7 +226,7 @@ mod tests {
     #[test]
     fn test_blend_image() {
         let image = Image {
-            buffer: &mut [
+            buffer: vec![
                 Rgba::new(0x80, 0x40, 0x20, 0xff),
                 Rgba::new(0x80, 0x40, 0x20, 0x80),
                 Rgba::new(0x80, 0x40, 0x20, 0x40),
@@ -237,7 +240,7 @@ mod tests {
         fb.blend_image(&image, &Rect::new(0, 0, 3, 3), &Coord::new(1, 1));
 
         assert_eq!(
-            fb.fb888,
+            fb.buffer,
             &[
                 Rgba::new(0, 0, 0, 255),
                 Rgba::new(0, 0, 0, 255),
@@ -255,7 +258,7 @@ mod tests {
     #[test]
     fn test_blend_to_image() {
         let mut image = Image {
-            buffer: &mut [
+            buffer: vec![
                 Rgba::new(0x80, 0x40, 0x20, 0xff),
                 Rgba::new(0x80, 0x40, 0x20, 0x80),
                 Rgba::new(0x80, 0x40, 0x20, 0x40),
