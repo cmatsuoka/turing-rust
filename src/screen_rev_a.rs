@@ -104,18 +104,24 @@ impl ScreenRevA {
     // RGB565 bit packing:
     // [rrrr rggg] [gggb bbbb]  =(LE)=>  [gggb bbbb] [rrrr rggg]
     fn downmix(&mut self, fb888: &[Rgba], rect: &Rect) {
-        let (width, _) = self.screen_size();
-        for y in rect.y..rect.y + rect.h {
-            let mut offset = y * width + rect.x; // fb888 vector offset
-            let mut j = 2 * offset; // fb565 vector offset
+        let (width, _) = self.screen_size(); // screen width in pixels
+        let mut ofs888 = rect.y * width + rect.x; // fb888 vector offset in pixels
+        let mut ofs565 = 2 * ofs888; // fb565 vector offset in bytes
+        let stride = width * 2; // width of rgb565 framebuffer in bytes
+
+        for y in 0..rect.h {
+            // line start y coordinate
+            let mut src = ofs888;
+            let mut dest = ofs565;
             for _ in 0..rect.w {
-                let p = fb888[offset];
-                offset += 1;
-                self.fb565_raw[j] = ((p.g & 0x1c) << 3) | (p.b >> 3);
-                j += 1;
-                self.fb565_raw[j] = (p.r & 0xf8) | (p.g >> 5);
-                j += 1;
+                let p = fb888[src];
+                src += 1;
+                self.fb565_raw[dest] = ((p.g & 0x1c) << 3) | (p.b >> 3);
+                self.fb565_raw[dest + 1] = (p.r & 0xf8) | (p.g >> 5);
+                dest += 2;
             }
+            ofs888 += width;
+            ofs565 += stride;
         }
     }
 }
@@ -185,7 +191,7 @@ impl Screen for ScreenRevA {
 
     fn expose_framebuffer(&mut self, fb888: &[Rgba], rect: &Rect) -> Res<()> {
         log::debug!("expose framebuffer {}", rect);
-        let (width, height) = self.screen_size();
+        let (width, height) = self.screen_size(); // size of screen in pixels
         let r = rect.clip(width, height);
 
         if r.w == 0 || r.h == 0 {
@@ -201,9 +207,9 @@ impl Screen for ScreenRevA {
             r.y + r.h - 1
         ))?;
 
-        let stride = 2 * width;
-        let mut start = 2 * (r.y * width + r.x);
-        let mut end = start + 2 * r.w;
+        let stride = 2 * width; // width of screen in bytes
+        let mut start = r.y * stride + (2 * r.x); // line start offset in bytes
+        let mut end = start + 2 * r.w; // line end offset in bytes
         for _ in 0..r.h {
             self.write(&self.fb565_raw[start..end].to_owned())?;
             start += stride;

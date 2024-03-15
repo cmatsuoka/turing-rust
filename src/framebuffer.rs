@@ -41,7 +41,7 @@ impl Framebuffer {
         );
 
         for y in 0..crop.h {
-            let offset = (dest.y + y) * self.width + crop.x + dest.x;
+            let offset = (dest.y + y) * self.width + dest.x;
             let src_offset = (crop.y + y) * image.width + crop.x;
             for x in 0..crop.w {
                 let fg = image.buffer[src_offset + x];
