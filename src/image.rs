@@ -70,20 +70,18 @@ impl Image {
     /// * `pos`: the coordinates inside the background image.
     /// * `background`: the background image.
     pub fn blend_to_background(&mut self, crop: &Rect, pos: &Coord, background: &Image) {
-        let crop = crop.clip(
-            min(background.width - pos.x, crop.w),
-            min(background.height - pos.y, crop.h),
-        );
+        let mut offset = pos.y * background.width + pos.x;
+        let mut src_offset = crop.y * self.width + crop.x;
 
         for y in 0..crop.h {
-            let offset = (pos.y + y) * self.width + pos.x;
-            let src_offset = (crop.y + y) * self.width + crop.x;
             for x in 0..crop.w {
                 let fg = self.buffer[src_offset + x];
                 let mut bg = background.buffer[offset + x];
                 Self::blend_alpha(&mut bg, fg);
                 self.buffer[src_offset + x] = bg;
             }
+            offset += background.width;
+            src_offset += self.width;
         }
     }
 
