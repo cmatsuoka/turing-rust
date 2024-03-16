@@ -8,7 +8,7 @@ use crate::screen_rev_a::ScreenRevA;
 
 pub use crate::colors::Rgba;
 pub use crate::geometry::{Coord, Rect};
-pub use crate::image::{Framebuffer, Image};
+pub use crate::image::Image;
 
 pub mod colors;
 mod geometry;
@@ -36,7 +36,7 @@ pub trait Screen {
     fn screen_off(&mut self) -> Res<()>;
     fn set_orientation(&mut self, o: Orientation) -> Res<()>;
     fn set_brightness(&mut self, level: usize) -> Res<()>;
-    fn expose_framebuffer(&mut self, img888: &Image, rect: &Rect, pos: &Coord) -> Res<()>;
+    fn display_image(&mut self, img888: &Image, rect: &Rect, pos: &Coord) -> Res<()>;
 }
 
 pub fn new(portname: &str) -> Res<Box<dyn Screen>> {

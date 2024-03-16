@@ -103,9 +103,9 @@ impl ScreenRevA {
 
     // RGB565 bit packing:
     // [rrrr rggg] [gggb bbbb]  =(LE)=>  [gggb bbbb] [rrrr rggg]
-    fn downmix(&mut self, img888: &Image, rect: &Rect, pos: &Coord) {
+    fn downmix(&mut self, image: &Image, rect: &Rect, pos: &Coord) {
         let (width, _) = self.screen_size(); // screen width in pixels
-        let mut ofs888 = rect.y * img888.width + rect.x; // img888 vector offset in pixels
+        let mut ofs888 = rect.y * image.width + rect.x; // image vector offset in pixels
         let mut ofs565 = 2 * (pos.y * width + pos.x); // fb565 vector offset in bytes
         let stride = width * 2; // width of rgb565 framebuffer in bytes
 
@@ -114,13 +114,13 @@ impl ScreenRevA {
             let mut src = ofs888;
             let mut dest = ofs565;
             for _ in 0..rect.w {
-                let p = img888.buffer[src];
+                let p = image.buffer[src];
                 src += 1;
                 self.fb565_raw[dest] = ((p.g & 0x1c) << 3) | (p.b >> 3);
                 self.fb565_raw[dest + 1] = (p.r & 0xf8) | (p.g >> 5);
                 dest += 2;
             }
-            ofs888 += img888.width;
+            ofs888 += image.width;
             ofs565 += stride;
         }
     }
@@ -189,16 +189,23 @@ impl Screen for ScreenRevA {
         Ok(())
     }
 
-    fn expose_framebuffer(&mut self, img888: &Image, rect: &Rect, pos: &Coord) -> Res<()> {
-        log::debug!("expose framebuffer {} {}", rect, pos);
+    /// Send an image to the screen.
+    ///
+    /// Display a cropped portion of the image on the turing screen.
+    ///
+    /// * `image`: the RGBA image.
+    /// * `crop`: the area of the image to display.
+    /// * `pos`: the screen coordinates to show the cropped area.
+    fn display_image(&mut self, image: &Image, crop: &Rect, pos: &Coord) -> Res<()> {
+        log::debug!("display image {} {}", crop, pos);
         let (width, height) = self.screen_size(); // size of screen in pixels
-        let r = rect.clip(width - pos.x, height - pos.y);
+        let r = crop.clip(width - pos.x, height - pos.y);
 
         if r.w == 0 || r.h == 0 {
             return Ok(());
         }
 
-        self.downmix(img888, &r, pos);
+        self.downmix(image, &r, pos);
         self.write(cmd!(
             Command::DisplayBitmap,
             pos.x,
@@ -353,7 +360,7 @@ mod tests {
         rgba[41] = Rgba::new(0x00, 0xff, 0x00, 0xff);
         rgba[42] = Rgba::new(0x55, 0xaa, 0xff, 0x00);
 
-        let img888 = Image {
+        let image = Image {
             buffer: rgba,
             width: 20,
             height: 10,
@@ -361,7 +368,7 @@ mod tests {
 
         // rgb565 data contains only the converted area
         let r = Rect::new(1, 1, 2, 2);
-        scr.downmix(&img888, &r, &Coord::new(1, 1));
+        scr.downmix(&image, &r, &Coord::new(1, 1));
 
         let mut expected = vec![0u8; 2 * 320 * 20];
         expected[321 * 2 + 0] = 0b00011111;
@@ -379,16 +386,16 @@ mod tests {
     }
 
     #[test]
-    fn test_expose_framebuffer() -> Res<()> {
+    fn test_display_image() -> Res<()> {
         let fake_port = FakePort::new(Vec::<u8>::new());
         let mut scr = fake_screen(fake_port);
         scr.fb565_raw = vec![0u8; 2 * 320 * 2];
-        let img888 = Image {
+        let image = Image {
             buffer: vec![Rgba::new(4, 4, 4, 0); 320 * 2],
             width: 320,
             height: 2,
         };
-        scr.expose_framebuffer(&img888, &Rect::new(1, 1, 4, 1), &Coord::new(1, 1))?;
+        scr.display_image(&image, &Rect::new(1, 1, 4, 1), &Coord::new(1, 1))?;
         assert_eq!(
             scr.port.get_buf(),
             vec![0x00, 0x40, 0x10, 0x10, 0x01, 197, 32, 0, 32, 0, 32, 0, 32, 0]
@@ -397,15 +404,15 @@ mod tests {
     }
 
     #[test]
-    fn test_expose_framebuffer_offscreen() -> Res<()> {
+    fn test_display_image_offscreen() -> Res<()> {
         let fake_port = FakePort::new(Vec::<u8>::new());
         let mut scr = fake_screen(fake_port);
-        let img888 = Image {
+        let image = Image {
             buffer: vec![Rgba::new(4, 4, 4, 0); 320 * 2],
             width: 320,
             height: 2,
         };
-        scr.expose_framebuffer(&img888, &Rect::new(10, 20, 0, 0), &Coord::new(0, 0))?;
+        scr.display_image(&image, &Rect::new(10, 20, 0, 0), &Coord::new(0, 0))?;
         assert_eq!(scr.port.get_buf(), vec![]);
         Ok(())
     }

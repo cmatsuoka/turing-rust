@@ -2,7 +2,7 @@
 
 use std::cmp::min;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Rect {
     pub x: usize,
     pub y: usize,
@@ -33,7 +33,7 @@ impl std::fmt::Display for Rect {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Coord {
     pub x: usize,
     pub y: usize,
@@ -61,6 +61,13 @@ mod tests {
         assert_eq!(pos.x, 10);
         assert_eq!(pos.y, 20);
         assert_eq!(format!("{}", pos), "@10,20");
+    }
+
+    #[test]
+    fn test_coord_eq() {
+        let pos = Coord::new(10, 20);
+        assert!(pos == Coord::new(10, 20));
+        assert!(pos != Coord::new(11, 20));
     }
 
     #[test]
