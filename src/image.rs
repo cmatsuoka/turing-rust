@@ -23,6 +23,7 @@ impl Image {
         }
     }
 
+    #[inline]
     pub fn full(&self) -> Rect {
         Rect::new(0, 0, self.width, self.height)
     }
@@ -47,9 +48,10 @@ impl Image {
             min(image.height, self.height - dest.y),
         );
 
-        for y in 0..crop.h {
-            let offset = (dest.y + y) * self.width + dest.x;
-            let src_offset = (crop.y + y) * image.width + crop.x;
+        let mut offset = dest.y * self.width + dest.x;
+        let mut src_offset = crop.y * image.width + crop.x;
+
+        for _ in 0..crop.h {
             for x in 0..crop.w {
                 let fg = image.buffer[src_offset + x];
                 if fg.a > 0 {
@@ -57,6 +59,8 @@ impl Image {
                     Self::blend_alpha(bg, fg);
                 }
             }
+            offset += self.width;
+            src_offset += image.width;
         }
     }
 
@@ -73,7 +77,7 @@ impl Image {
         let mut offset = pos.y * background.width + pos.x;
         let mut src_offset = crop.y * self.width + crop.x;
 
-        for y in 0..crop.h {
+        for _ in 0..crop.h {
             for x in 0..crop.w {
                 let fg = self.buffer[src_offset + x];
                 let mut bg = background.buffer[offset + x];

@@ -7,10 +7,12 @@ use std::io::Write;
 use crate::screen_rev_a::ScreenRevA;
 
 pub use crate::colors::Rgba;
+pub use crate::fonts::Font;
 pub use crate::geometry::{Coord, Rect};
 pub use crate::image::Image;
 
 pub mod colors;
+mod fonts;
 mod geometry;
 mod image;
 mod screen_rev_a;
